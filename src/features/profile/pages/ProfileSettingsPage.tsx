@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, Save, CheckCircle2, Lock, Globe, Bell, Eye, Camera, Building, Grid, LogOut } from 'lucide-react';
+import { User, Mail, Phone, Save, CheckCircle2, Lock, Globe, Bell, Eye, Camera, Building, Grid, LogOut, Award, AlertCircle } from 'lucide-react';
 import { Card } from '../../../components/ui/Card';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
+import { Badge } from '../../../components/ui/Badge';
 import { useAuthStore } from '../../../stores/auth.store';
 import { useAcademyStore } from '../../../stores/academy.store';
 import { useCourseStore } from '../../../stores/course.store';
+import { useStudentCertificateStore } from '../../../stores/certificate.store';
 
 export const ProfileSettingsPage: React.FC = () => {
   const { academyUuid = '550e8400-e29b-41d4-a716-446655440000', courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501' } = useParams<{
@@ -20,6 +22,33 @@ export const ProfileSettingsPage: React.FC = () => {
   const logout = useAuthStore((state) => state.logout);
   const academies = useAcademyStore((state) => state.academies);
   const courses = useCourseStore((state) => state.courses);
+
+  // Student Certificate Store
+  const getTemplateFieldsForCourse = useStudentCertificateStore((state) => state.getTemplateFieldsForCourse);
+  const getStudentCertificateFieldValues = useStudentCertificateStore((state) => state.getStudentCertificateFieldValues);
+  const saveStudentCertificateDetails = useStudentCertificateStore((state) => state.saveStudentCertificateDetails);
+  const isCertificateProfileComplete = useStudentCertificateStore((state) => state.isCertificateProfileComplete);
+
+  const templateFields = getTemplateFieldsForCourse(courseUuid);
+  const editableFields = templateFields.filter((f) => f.studentEditable);
+  const autoFillFields = templateFields.filter((f) => !f.studentEditable && f.autoFill);
+
+  const [certFormValues, setCertFormValues] = useState<Record<string, string | number | boolean | null>>(() =>
+    getStudentCertificateFieldValues(courseUuid)
+  );
+  const [certValidationErrors, setCertValidationErrors] = useState<Record<string, string>>({});
+
+  // Auto-scroll to Certificate Details card if URL contains #certificate-details
+  useEffect(() => {
+    if (window.location.hash === '#certificate-details') {
+      const el = document.getElementById('certificate-details');
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 150);
+      }
+    }
+  }, []);
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -175,6 +204,207 @@ export const ProfileSettingsPage: React.FC = () => {
           </div>
         </div>
       </Card>
+
+      {/* CERTIFICATE DETAILS DYNAMIC CARD (ALL FIELDS ARE MANDATORY & STUDENT EDITABLE) */}
+      {templateFields.length > 0 && (
+        <Card id="certificate-details" padding="md" className="bg-white border border-slate-200/80 shadow-2xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Award className="w-5 h-5" style={{ color: currentAcademy?.theme?.primaryColor || '#2563EB' }} />
+                <h2 className="text-base sm:text-[18px] font-semibold text-slate-900 tracking-tight">Certificate Details</h2>
+                {isCertificateProfileComplete(courseUuid).isComplete ? (
+                  <Badge variant="success" size="sm">✓ Certificate Details Complete</Badge>
+                ) : (
+                  <Badge variant="warning" size="sm">Action Required</Badge>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 font-normal mt-0.5">
+                Complete the required information used to generate your official course certificate.
+              </p>
+            </div>
+
+            {/* COMPLETION INDICATOR & PROGRESS BAR */}
+            <div className="w-full sm:w-56 space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200/80 shrink-0">
+              <div className="flex items-center justify-between text-[11px] font-semibold">
+                <span className="text-slate-600">Certificate Profile</span>
+                <span style={{ color: currentAcademy?.theme?.primaryColor || '#2563EB' }}>
+                  {isCertificateProfileComplete(courseUuid).completedCount} / {isCertificateProfileComplete(courseUuid).totalRequiredCount} Required Fields
+                </span>
+              </div>
+              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    backgroundColor: currentAcademy?.theme?.primaryColor || '#2563EB',
+                    width: `${Math.round(
+                      (isCertificateProfileComplete(courseUuid).completedCount /
+                        Math.max(1, isCertificateProfileComplete(courseUuid).totalRequiredCount)) *
+                        100
+                    )}%`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* READ-ONLY AUTO-FILLED FIELDS PREVIEW */}
+          {autoFillFields.length > 0 && (
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block font-bold">
+                Auto-Filled System Values (Locked)
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs text-slate-600">
+                <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-400 block font-semibold">Course Title</span>
+                  <span className="font-bold text-slate-900 truncate block">{currentCourse?.title || 'React 19 & Cloud Architecture'}</span>
+                </div>
+                <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-400 block font-semibold">Issuing Academy</span>
+                  <span className="font-bold text-slate-900 truncate block">{currentAcademy?.name || 'Bright Academy of Technology'}</span>
+                </div>
+                <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                  <span className="text-[10px] text-slate-400 block font-semibold">System Verification ID</span>
+                  <span className="font-mono font-bold text-slate-900 truncate block">AUTO-GEN-2026-CS</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* DYNAMIC STUDENT MANDATORY FORM */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const newErrors: Record<string, string> = {};
+
+              templateFields.forEach((field) => {
+                const val = certFormValues[field.key];
+                if (val === undefined || val === null || String(val).trim() === '') {
+                  newErrors[field.key] = `${field.label} is required.`;
+                }
+              });
+
+              if (Object.keys(newErrors).length > 0) {
+                setCertValidationErrors(newErrors);
+                setToastMessage('Please complete all mandatory certificate fields.');
+                setTimeout(() => setToastMessage(null), 3000);
+                return;
+              }
+
+              saveStudentCertificateDetails({
+                academyUuid,
+                courseUuid,
+                templateUuid: 'tmpl-react19-mastery',
+                studentUuid: user?.id || 'std-alex-001',
+                values: certFormValues,
+              });
+
+              setCertValidationErrors({});
+              setToastMessage('Certificate Details saved! Certificate profile is now complete.');
+              setTimeout(() => setToastMessage(null), 3000);
+            }}
+            className="space-y-4"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {templateFields.map((field) => {
+                const val = certFormValues[field.key] ?? '';
+                const err = certValidationErrors[field.key];
+
+                return (
+                  <div key={field.uuid} className="space-y-1.5 text-left">
+                    <label className="text-xs font-semibold text-slate-700 block">
+                      {field.label} <span className="text-rose-500 font-bold">*</span>
+                    </label>
+
+                    {field.type === 'textarea' ? (
+                      <textarea
+                        rows={3}
+                        value={String(val)}
+                        onChange={(e) => {
+                          setCertFormValues((prev) => ({ ...prev, [field.key]: e.target.value }));
+                          if (certValidationErrors[field.key]) {
+                            setCertValidationErrors((prev) => {
+                              const next = { ...prev };
+                              delete next[field.key];
+                              return next;
+                            });
+                          }
+                        }}
+                        placeholder={field.placeholder}
+                        className={`w-full p-3 rounded-xl bg-white border text-xs font-semibold focus:outline-hidden ${
+                          err ? 'border-rose-500 text-rose-900' : 'border-slate-200 text-slate-900 focus:border-blue-600'
+                        }`}
+                      />
+                    ) : field.type === 'select' ? (
+                      <select
+                        value={String(val)}
+                        onChange={(e) => {
+                          setCertFormValues((prev) => ({ ...prev, [field.key]: e.target.value }));
+                          if (certValidationErrors[field.key]) {
+                            setCertValidationErrors((prev) => {
+                              const next = { ...prev };
+                              delete next[field.key];
+                              return next;
+                            });
+                          }
+                        }}
+                        className={`w-full h-11 px-3 rounded-xl bg-white border text-xs font-semibold focus:outline-hidden ${
+                          err ? 'border-rose-500 text-rose-900' : 'border-slate-200 text-slate-900 focus:border-blue-600'
+                        }`}
+                      >
+                        <option value="">Select option...</option>
+                        {(field.options || ['Grade A+', 'Grade A', 'Grade B']).map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input
+                        type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
+                        value={String(val)}
+                        onChange={(e) => {
+                          setCertFormValues((prev) => ({ ...prev, [field.key]: e.target.value }));
+                          if (certValidationErrors[field.key]) {
+                            setCertValidationErrors((prev) => {
+                              const next = { ...prev };
+                              delete next[field.key];
+                              return next;
+                            });
+                          }
+                        }}
+                        placeholder={field.placeholder}
+                        className={`bg-white text-xs font-semibold h-11 ${
+                          err ? 'border-rose-500 text-rose-900' : 'border-slate-200 text-slate-900'
+                        }`}
+                      />
+                    )}
+
+                    {field.helpText && !err && <p className="text-[11px] text-slate-500 font-normal">{field.helpText}</p>}
+                    {err && (
+                      <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> {err}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-100">
+              <Button
+                type="submit"
+                size="md"
+                style={{ backgroundColor: currentAcademy?.theme?.primaryColor || '#2563EB' }}
+                className="text-white font-semibold rounded-xl px-6 min-h-[44px] w-full sm:w-auto"
+                leftIcon={<Save className="w-4 h-4" />}
+              >
+                Save Certificate Details
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
 
       {/* 1. PERSONAL INFORMATION */}
       <form onSubmit={handleSaveProfile} className="space-y-6">
