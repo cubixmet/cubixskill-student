@@ -24,7 +24,7 @@ export const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const base =
-    'inline-flex items-center justify-center font-semibold rounded-[10px] transition-all cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-[0.99] font-sans';
+    'inline-flex items-center justify-center font-semibold rounded-xl transition-all duration-200 cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed select-none active:scale-[0.99] font-sans whitespace-nowrap';
 
   const variants = {
     primary:
@@ -36,9 +36,9 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   const sizes = {
-    sm: 'h-[36px] min-h-[36px] px-3 text-xs gap-1.5',
-    md: 'h-[44px] min-h-[44px] px-4 text-xs md:text-sm gap-2',
-    lg: 'h-[52px] min-h-[52px] px-6 text-sm md:text-base gap-2.5',
+    sm: 'h-[36px] min-h-[36px] px-3.5 text-xs gap-2',
+    md: 'h-[48px] min-h-[48px] px-5 text-sm gap-2',
+    lg: 'h-[52px] min-h-[52px] px-6 text-sm gap-2.5',
   };
 
   return (
@@ -50,14 +50,14 @@ export const Button: React.FC<ButtonProps> = ({
     >
       {isLoading ? (
         <>
-          <Loader2 className="w-4 h-4 text-current animate-spin" />
+          <Loader2 className="w-4 h-4 text-current animate-spin shrink-0" />
           <span>{loadingText || children}</span>
         </>
       ) : (
         <>
-          {leftIcon}
+          {leftIcon && <span className="inline-flex items-center justify-center shrink-0">{leftIcon}</span>}
           <span>{children}</span>
-          {rightIcon}
+          {rightIcon && <span className="inline-flex items-center justify-center shrink-0">{rightIcon}</span>}
         </>
       )}
     </button>

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Shield, Sparkles, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 
 const loginSchema = z.object({
@@ -21,31 +22,50 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  const demoToken = searchParams.get('demoToken');
+  const courseUuid = searchParams.get('course') || '9c78bda1-98c2-4b11-8b81-92d3db12b501';
 
   const login = useAuthStore((state) => state.login);
+  const startDemoExperience = useAuthStore((state) => state.startDemoExperience);
   const authError = useAuthStore((state) => state.authError);
   const clearAuthError = useAuthStore((state) => state.clearAuthError);
   const intendedRoute = useAuthStore((state) => state.intendedRoute);
   const setIntendedRoute = useAuthStore((state) => state.setIntendedRoute);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isActivatingDemoToken, setIsActivatingDemoToken] = useState(false);
+
+  useEffect(() => {
+    if (demoToken) {
+      setIsActivatingDemoToken(true);
+      clearAuthError();
+
+      // Auto-activate demo token session
+      setTimeout(() => {
+        startDemoExperience();
+        setIsActivatingDemoToken(false);
+        navigate(`/student/academies/550e8400-e29b-41d4-a716-446655440000/courses/${courseUuid}/overview`, { replace: true });
+      }, 600);
+    }
+  }, [demoToken, courseUuid, navigate, startDemoExperience, clearAuthError]);
 
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'alex.student@gmail.com',
-      password: 'password123',
+      email: '',
+      password: '',
       rememberMe: true,
     },
   });
 
   const getTargetRoute = (): string => {
-    const locationStateFrom = (location.state as any)?.from;
+    const locationStateFrom = (location.state as { from?: string | { pathname: string } })?.from;
     const fromPath = typeof locationStateFrom === 'string' ? locationStateFrom : locationStateFrom?.pathname;
     if (fromPath && fromPath !== '/login') return fromPath;
     if (intendedRoute && intendedRoute !== '/login') return intendedRoute;
@@ -69,24 +89,19 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleDemoLogin = async () => {
-    setIsSubmitting(true);
-    clearAuthError();
-    setValue('email', 'alex.student@gmail.com');
-    setValue('password', 'demo1234');
-    const success = await login({
-      email: 'alex.student@gmail.com',
-      password: 'demo1234',
-      rememberMe: true,
-    });
-    setIsSubmitting(false);
-
-    if (success) {
-      const target = getTargetRoute();
-      setIntendedRoute(null);
-      navigate(target, { replace: true });
-    }
-  };
+  if (isActivatingDemoToken) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center font-sans text-xs">
+        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xl space-y-4 max-w-sm w-full">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+            <Loader2 className="w-6 h-6 animate-spin" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-900">Activating Demo Session...</h2>
+          <p className="text-slate-500 text-xs">Validating 5-day temporary access token and loading demo course environment.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-3 sm:p-4 font-sans text-slate-900">
@@ -96,7 +111,7 @@ export const LoginPage: React.FC = () => {
             Welcome to Student Portal
           </h1>
           <p className="text-[13px] font-medium text-slate-500 max-w-[320px] mx-auto leading-[1.4]">
-            Sign in to continue learning.
+            Sign in with your email to access your enrolled academy.
           </p>
         </div>
 
@@ -113,11 +128,11 @@ export const LoginPage: React.FC = () => {
             </label>
             <input
               type="email"
-              placeholder="Enter your email"
+              placeholder="alex@gmail.com"
               {...register('email')}
               className={`w-full h-[44px] px-3.5 rounded-[10px] border ${
                 errors.email ? 'border-red-500' : 'border-slate-200'
-              } bg-white text-[13px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all`}
+              } bg-white text-[13px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all`}
             />
             {errors.email && (
               <span className="text-[11px] font-semibold text-red-600 block">{errors.email.message}</span>
@@ -130,11 +145,11 @@ export const LoginPage: React.FC = () => {
             </label>
             <input
               type="password"
-              placeholder="Enter your password"
+              placeholder="••••••••"
               {...register('password')}
               className={`w-full h-[44px] px-3.5 rounded-[10px] border ${
                 errors.password ? 'border-red-500' : 'border-slate-200'
-              } bg-white text-[13px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all`}
+              } bg-white text-[13px] font-medium text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all`}
             />
             {errors.password && (
               <span className="text-[11px] font-semibold text-red-600 block">{errors.password.message}</span>
@@ -162,27 +177,12 @@ export const LoginPage: React.FC = () => {
           >
             {isSubmitting ? 'Signing in...' : 'Sign In'}
           </button>
-
-          <div className="relative flex items-center justify-center my-3">
-            <div className="w-full border-t border-slate-200" />
-            <span className="absolute bg-white px-2.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-              OR
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleDemoLogin}
-            disabled={isSubmitting}
-            className="w-full h-[44px] border border-blue-600 hover:bg-blue-50 text-blue-600 font-semibold text-[15px] rounded-[10px] transition-all cursor-pointer active:scale-[0.99]"
-          >
-            Quick Demo
-          </button>
         </form>
       </div>
 
-      <div className="mt-3.5 text-center text-[11px] font-medium text-slate-400">
-        Secure Student Login
+      <div className="mt-3.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+        <Shield className="w-3.5 h-3.5 text-emerald-500" />
+        <span>Enterprise SSL Secure Authentication</span>
       </div>
     </div>
   );

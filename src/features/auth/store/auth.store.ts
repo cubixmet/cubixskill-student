@@ -7,11 +7,14 @@ interface AuthState {
   // Backward-compatibility accessor for existing components
   user: AuthStudent | null;
   isAuthenticated: boolean;
+  isDemoSession: boolean;
   isLoading: boolean;
   authError: string | null;
   intendedRoute: string | null;
 
   login: (credentials: LoginCredentials) => Promise<boolean>;
+  startDemoExperience: () => void;
+  exitDemoSession: () => Promise<void>;
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
   setStudent: (student: AuthStudent | null) => void;
@@ -19,15 +22,16 @@ interface AuthState {
   clearAuthError: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   student: null,
   user: null,
   isAuthenticated: false,
+  isDemoSession: false,
   isLoading: true, // starts loading until restoreSession finishes
   authError: null,
   intendedRoute: null,
 
-  setStudent: (student) => set({ student, user: student }),
+  setStudent: (student) => set({ student, user: student, isDemoSession: !!student?.isDemoSession }),
 
   setIntendedRoute: (route) => set({ intendedRoute: route }),
 
@@ -41,6 +45,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         student,
         user: student,
         isAuthenticated: true,
+        isDemoSession: false,
         isLoading: false,
         authError: null,
       });
@@ -50,11 +55,39 @@ export const useAuthStore = create<AuthState>((set) => ({
         authError: err.message || 'The email or password is incorrect.',
         isLoading: false,
         isAuthenticated: false,
+        isDemoSession: false,
         student: null,
         user: null,
       });
       return false;
     }
+  },
+
+  startDemoExperience: () => {
+    set({ isLoading: true, authError: null });
+    const { student } = authService.createSandboxDemoSession();
+    set({
+      student,
+      user: student,
+      isAuthenticated: true,
+      isDemoSession: true,
+      isLoading: false,
+      authError: null,
+    });
+  },
+
+  exitDemoSession: async () => {
+    set({ isLoading: true });
+    await authService.logoutStudent();
+    set({
+      student: null,
+      user: null,
+      isAuthenticated: false,
+      isDemoSession: false,
+      isLoading: false,
+      authError: null,
+      intendedRoute: null,
+    });
   },
 
   logout: async () => {
@@ -64,6 +97,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       student: null,
       user: null,
       isAuthenticated: false,
+      isDemoSession: false,
       isLoading: false,
       authError: null,
       intendedRoute: null,
@@ -79,6 +113,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           student: session.student,
           user: session.student,
           isAuthenticated: true,
+          isDemoSession: !!session.student.isDemoSession,
           isLoading: false,
         });
       } else {
@@ -86,6 +121,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           student: null,
           user: null,
           isAuthenticated: false,
+          isDemoSession: false,
           isLoading: false,
         });
       }
@@ -94,6 +130,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         student: null,
         user: null,
         isAuthenticated: false,
+        isDemoSession: false,
         isLoading: false,
       });
     }

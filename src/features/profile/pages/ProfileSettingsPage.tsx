@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, Save, CheckCircle2, Lock, Globe, Bell, Eye, Camera, Building, Grid } from 'lucide-react';
+import { User, Mail, Phone, Save, CheckCircle2, Lock, Globe, Bell, Eye, Camera, Building, Grid, LogOut } from 'lucide-react';
 import { Card } from '../../../components/ui/Card';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
+import { Modal } from '../../../components/ui/Modal';
 import { useAuthStore } from '../../../stores/auth.store';
 import { useAcademyStore } from '../../../stores/academy.store';
 import { useCourseStore } from '../../../stores/course.store';
@@ -16,8 +17,17 @@ export const ProfileSettingsPage: React.FC = () => {
   const navigate = useNavigate();
 
   const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
   const academies = useAcademyStore((state) => state.academies);
   const courses = useCourseStore((state) => state.courses);
+
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  const handleConfirmedLogout = async () => {
+    setShowLogoutConfirm(false);
+    await logout();
+    navigate('/login', { replace: true });
+  };
 
   const currentAcademy = academies.find((a) => a.uuid === academyUuid);
   const currentCourse = courses.find((c) => c.academyUuid === academyUuid && c.uuid === courseUuid);
@@ -438,6 +448,63 @@ export const ProfileSettingsPage: React.FC = () => {
           </div>
         </div>
       </Card>
+
+      {/* 5. ACCOUNT & SESSION MANAGEMENT */}
+      <Card padding="md" className="bg-white border border-slate-200/80 space-y-4">
+        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+          <LogOut className="w-4 h-4 text-rose-600" />
+          <div>
+            <h2 className="font-semibold text-base md:text-[18px] text-slate-900 tracking-tight">Account</h2>
+            <p className="text-xs text-slate-500 font-normal">Manage your current session.</p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowLogoutConfirm(true)}
+          className="w-full h-12 min-h-[48px] px-4 rounded-xl border border-rose-300 bg-white text-rose-600 font-semibold text-sm flex items-center justify-center gap-2 hover:bg-rose-50 transition-all duration-200 cursor-pointer"
+        >
+          <LogOut className="w-4.5 h-4.5 text-rose-600" />
+          <span>Logout</span>
+        </button>
+      </Card>
+
+      {/* LOGOUT CONFIRMATION DIALOG */}
+      {showLogoutConfirm && (
+        <Modal
+          isOpen={showLogoutConfirm}
+          onClose={() => setShowLogoutConfirm(false)}
+          title="Logout"
+          maxWidth="sm"
+        >
+          <div className="space-y-4 text-xs font-sans text-left">
+            <p className="text-slate-600 text-sm font-medium">
+              Are you sure you want to sign out of your account?
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="font-semibold"
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="button"
+                size="md"
+                onClick={handleConfirmedLogout}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-semibold shadow-xs"
+              >
+                Logout
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

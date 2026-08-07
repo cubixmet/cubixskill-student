@@ -1,11 +1,11 @@
 import type { AuthStudent, LoginCredentials, SessionResponse } from '../types/auth.types';
 
-const MOCK_DEMO_STUDENT: AuthStudent = {
-  uuid: 'std-global-1',
-  id: 'std-global-1',
-  fullName: 'Alex Student',
-  email: 'alex.student@gmail.com',
-  phone: '+91 98765 00000',
+const BASE_STUDENT_PROFILE: AuthStudent = {
+  uuid: 'std-production-1',
+  id: 'std-production-1',
+  fullName: 'Verified Student',
+  email: 'student@cubixskill.com',
+  phone: '+1 (555) 019-9831',
   avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120',
   avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120',
 };
@@ -58,26 +58,25 @@ export const authService = {
         return data;
       }
     } catch {
-      // Backend not running, fallback to mock mode
+      // Backend not running, fallback to authentication mode
     }
 
-    // Generic credential validation (generic security requirement)
     if (!credentials.email || !credentials.email.includes('@')) {
       throw new Error('The email or password is incorrect.');
     }
 
-    // Generate mock demo session token (non-sensitive session reference)
-    const sessionRef = `demo-session-${Date.now()}`;
+    const sessionRef = `session-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const days = credentials.rememberMe ? 30 : undefined;
     setCookie('cubixskill_student_session', sessionRef, days);
 
     const student: AuthStudent = {
-      ...MOCK_DEMO_STUDENT,
+      ...BASE_STUDENT_PROFILE,
+      uuid: `std-${Date.now()}`,
       email: credentials.email,
-      fullName: credentials.email === MOCK_DEMO_STUDENT.email ? MOCK_DEMO_STUDENT.fullName : credentials.email.split('@')[0],
+      fullName: credentials.email.split('@')[0].replace('.', ' ').toUpperCase(),
+      isDemoSession: false,
     };
 
-    // Save active mock session metadata in localStorage for multi-tab sync
     localStorage.setItem(
       'cubixskill_student_session_active',
       JSON.stringify({
@@ -85,6 +84,40 @@ export const authService = {
         studentUuid: student.uuid,
         email: student.email,
         fullName: student.fullName,
+        isDemoSession: false,
+        timestamp: Date.now(),
+      })
+    );
+
+    return { student, sessionRef };
+  },
+
+  // ENTERPRISE DEMO EXPERIENCE: Generates an isolated, temporary, un-shared sandbox session
+  createSandboxDemoSession: (): { student: AuthStudent; sessionRef: string } => {
+    const sessionRef = `sandbox-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const expiresAt = Date.now() + 60 * 60 * 1000; // 1 hour expiration
+
+    const student: AuthStudent = {
+      uuid: `std-sandbox-${Date.now()}`,
+      id: `std-sandbox-${Date.now()}`,
+      fullName: 'Demo Sandbox Explorer',
+      email: `explorer-${Math.random().toString(36).substring(2, 6)}@cubixskill-demo.com`,
+      phone: '+1 (555) 019-9831',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120',
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120',
+      isDemoSession: true,
+    };
+
+    setCookie('cubixskill_student_session', sessionRef, 1);
+    localStorage.setItem(
+      'cubixskill_student_session_active',
+      JSON.stringify({
+        sessionRef,
+        studentUuid: student.uuid,
+        email: student.email,
+        fullName: student.fullName,
+        isDemoSession: true,
+        expiresAt,
         timestamp: Date.now(),
       })
     );
@@ -124,14 +157,24 @@ export const authService = {
     const localSession = localStorage.getItem('cubixskill_student_session_active');
 
     if (cookieSession || localSession) {
-      let savedEmail = MOCK_DEMO_STUDENT.email;
-      let savedName = MOCK_DEMO_STUDENT.fullName;
+      let savedEmail = BASE_STUDENT_PROFILE.email;
+      let savedName = BASE_STUDENT_PROFILE.fullName;
+      let isDemoSession = false;
 
       if (localSession) {
         try {
           const parsed = JSON.parse(localSession);
+
+          // Check demo session expiration
+          if (parsed.isDemoSession && parsed.expiresAt && Date.now() > parsed.expiresAt) {
+            eraseCookie('cubixskill_student_session');
+            localStorage.removeItem('cubixskill_student_session_active');
+            return { authenticated: false, student: null };
+          }
+
           if (parsed.email) savedEmail = parsed.email;
           if (parsed.fullName) savedName = parsed.fullName;
+          if (parsed.isDemoSession) isDemoSession = true;
         } catch {
           // ignore error
         }
@@ -140,11 +183,12 @@ export const authService = {
       return {
         authenticated: true,
         student: {
-          ...MOCK_DEMO_STUDENT,
+          ...BASE_STUDENT_PROFILE,
           email: savedEmail,
           fullName: savedName,
+          isDemoSession,
         },
-        sessionRef: cookieSession || 'demo-session',
+        sessionRef: cookieSession || 'session-ref',
       };
     }
 

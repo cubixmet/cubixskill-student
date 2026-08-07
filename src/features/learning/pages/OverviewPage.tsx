@@ -23,34 +23,47 @@ export const OverviewPage: React.FC = () => {
   const theme = academy?.theme || { primaryColor: '#2563EB' };
 
   return (
-    <div className="space-y-6 font-sans text-xs text-left max-w-5xl mx-auto">
+    <div className="space-y-5 sm:space-y-6 font-sans text-xs text-left max-w-5xl mx-auto w-full px-1 sm:px-0">
       {/* 1. HERO COURSE OVERVIEW BANNER */}
-      <Card padding="lg" className="bg-white border border-slate-200/80 shadow-2xs space-y-4">
-        <div className="flex flex-col md:flex-row gap-6">
-          <div className="w-full md:w-64 h-40 bg-slate-200 rounded-xl overflow-hidden shrink-0">
-            <img src={course?.thumbnail} alt={course?.title} className="w-full h-full object-cover" />
+      <Card padding="md" className="bg-white border border-slate-200/80 shadow-2xs rounded-2xl sm:rounded-3xl space-y-4">
+        <div className="flex flex-col md:flex-row gap-5 md:gap-6 items-stretch">
+          {/* COURSE THUMBNAIL (FULL-WIDTH ON MOBILE, 16px RADIUS) */}
+          <div className="w-full md:w-64 h-44 sm:h-52 md:h-auto bg-slate-100 rounded-2xl overflow-hidden shrink-0 border border-slate-200/60">
+            <img
+              src={course?.thumbnail}
+              alt={course?.title}
+              loading="lazy"
+              className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+            />
           </div>
 
-          <div className="flex-1 space-y-3">
-            <div className="flex items-center gap-2">
-              <Badge variant="info" size="sm">{course?.level}</Badge>
-              <span className="text-slate-400 font-medium">•</span>
-              <span className="text-slate-500 font-medium">{course?.language}</span>
+          {/* COURSE DETAILS CONTENT */}
+          <div className="flex-1 space-y-3 flex flex-col justify-between">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="info" size="sm" className="font-bold text-[11px] rounded-lg">
+                  {course?.level || 'Advanced'}
+                </Badge>
+                <span className="text-slate-300 font-bold">•</span>
+                <span className="text-slate-500 font-semibold text-[11px]">{course?.language || 'English'}</span>
+              </div>
+
+              <h1 className="text-xl sm:text-2xl md:text-[28px] font-bold text-slate-900 tracking-tight leading-snug">
+                {course?.title}
+              </h1>
+
+              <p className="text-xs text-slate-500 font-normal">
+                Lead Instructor:{' '}
+                <strong className="font-semibold text-slate-800">{course?.instructorName || 'Aarav Patel'}</strong>
+              </p>
             </div>
 
-            <h1 className="text-2xl sm:text-[28px] font-bold text-slate-900 tracking-tight leading-tight">
-              {course?.title}
-            </h1>
-
-            <span className="text-xs text-slate-500 font-normal block">
-              Lead Instructor: <strong className="font-semibold text-slate-700">{course?.instructorName}</strong>
-            </span>
-
-            <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-3">
+            {/* BUTTONS (FULL-WIDTH ON MOBILE, EQUAL HEIGHT, ACCENT COLOR) */}
+            <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
               <Button
                 onClick={() => navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/learn`)}
-                className="font-semibold px-6"
-                leftIcon={<PlayCircle className="w-4 h-4" />}
+                className="w-full font-semibold justify-center text-white min-h-[46px] rounded-xl shadow-xs cursor-pointer"
+                leftIcon={<PlayCircle className="w-4 h-4 text-white" />}
                 style={{ backgroundColor: theme.primaryColor }}
               >
                 Continue Learning
@@ -59,7 +72,7 @@ export const OverviewPage: React.FC = () => {
               <Button
                 variant="outline"
                 onClick={() => navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/curriculum`)}
-                className="font-semibold"
+                className="w-full font-semibold justify-center min-h-[46px] rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 View Curriculum
               </Button>
@@ -68,57 +81,63 @@ export const OverviewPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* 2. PROGRESS & STATS SUMMARY GRID */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
-        <Card padding="sm" className="bg-white border border-slate-200/80 text-center space-y-1">
+      {/* 2. STATISTICS CARDS (2 x 2 GRID ON MOBILE, EQUAL HEIGHT) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <Card padding="sm" className="bg-white border border-slate-200/80 text-center space-y-1.5 rounded-2xl p-4 flex flex-col items-center justify-center min-h-[96px] shadow-2xs">
           <BookOpen className="w-5 h-5 mx-auto" style={{ color: theme.primaryColor }} />
-          <span className="text-lg font-bold text-slate-900 block">{course?.completedLessonsCount}/{course?.totalLessonsCount}</span>
-          <span className="text-[10px] text-slate-500 font-medium uppercase">Completed Lessons</span>
+          <span className="text-base sm:text-lg font-bold text-slate-900 block leading-tight">
+            {course?.completedLessonsCount || 8}/{course?.totalLessonsCount || 19}
+          </span>
+          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Completed Lessons</span>
         </Card>
 
-        <Card padding="sm" className="bg-white border border-slate-200/80 text-center space-y-1">
-          <Clock className="w-5 h-5 text-indigo-600 mx-auto" />
-          <span className="text-lg font-bold text-slate-900 block">14.5 Hours</span>
-          <span className="text-[10px] text-slate-500 font-medium uppercase">Learning Time</span>
+        <Card padding="sm" className="bg-white border border-slate-200/80 text-center space-y-1.5 rounded-2xl p-4 flex flex-col items-center justify-center min-h-[96px] shadow-2xs">
+          <Clock className="w-5 h-5 mx-auto" style={{ color: theme.primaryColor }} />
+          <span className="text-base sm:text-lg font-bold text-slate-900 block leading-tight">14.5 Hours</span>
+          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Learning Time</span>
         </Card>
 
-        <Card padding="sm" className="bg-white border border-slate-200/80 text-center space-y-1">
-          <FileCheck className="w-5 h-5 text-emerald-600 mx-auto" />
-          <span className="text-lg font-bold text-slate-900 block">1 Pending</span>
-          <span className="text-[10px] text-slate-500 font-medium uppercase">Assignments</span>
+        <Card padding="sm" className="bg-white border border-slate-200/80 text-center space-y-1.5 rounded-2xl p-4 flex flex-col items-center justify-center min-h-[96px] shadow-2xs">
+          <FileCheck className="w-5 h-5 mx-auto" style={{ color: theme.primaryColor }} />
+          <span className="text-base sm:text-lg font-bold text-slate-900 block leading-tight">1 Pending</span>
+          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Assignments</span>
         </Card>
 
-        <Card padding="sm" className="bg-white border border-slate-200/80 text-center space-y-1">
-          <Award className="w-5 h-5 text-amber-600 mx-auto" />
-          <span className="text-lg font-bold text-slate-900 block">Eligible</span>
-          <span className="text-[10px] text-slate-500 font-medium uppercase">Certificate</span>
+        <Card padding="sm" className="bg-white border border-slate-200/80 text-center space-y-1.5 rounded-2xl p-4 flex flex-col items-center justify-center min-h-[96px] shadow-2xs">
+          <Award className="w-5 h-5 mx-auto" style={{ color: theme.primaryColor }} />
+          <span className="text-base sm:text-lg font-bold text-slate-900 block leading-tight">Eligible</span>
+          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Certificate</span>
         </Card>
       </div>
 
-      {/* 3. CURRENT MODULE & LESSON SPOTLIGHT */}
-      <Card padding="md" className="bg-white border border-slate-200/80 space-y-3">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-          <span className="font-semibold text-xs text-slate-400 uppercase tracking-wider">Up Next in Your Course</span>
-          <span className="text-xs font-semibold" style={{ color: theme.primaryColor }}>
+      {/* 3. COURSE INFORMATION & RESUME POSITION SPOTLIGHT */}
+      <Card padding="md" className="bg-white border border-slate-200/80 space-y-3.5 rounded-2xl sm:rounded-3xl shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-100 pb-2.5">
+          <span className="font-bold text-[11px] text-slate-400 uppercase tracking-wider">Up Next in Your Course</span>
+          <span className="text-xs font-bold" style={{ color: theme.primaryColor }}>
             Resume Position: 12:45
           </span>
         </div>
 
-        <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between gap-4">
+        <div className="p-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
-            <span className="text-[11px] font-medium text-slate-400 block">{course?.currentModuleTitle}</span>
-            <h3 className="font-semibold text-base text-slate-900">{course?.currentLessonTitle}</h3>
-            <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> 80% Watched
+            <span className="text-[11px] font-semibold text-slate-400 block">
+              {course?.currentModuleTitle || 'Module 2: RabbitMQ & Kafka Message Bus'}
+            </span>
+            <h3 className="font-bold text-sm sm:text-base text-slate-900">
+              {course?.currentLessonTitle || '2.3 Idempotent Event Handlers'}
+            </h3>
+            <span className="text-xs text-emerald-600 font-bold flex items-center gap-1.5 pt-0.5">
+              <CheckCircle2 className="w-4 h-4" /> 80% Watched
             </span>
           </div>
 
           <Button
             size="sm"
             onClick={() => navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/learn`)}
-            rightIcon={<ChevronRight className="w-4 h-4" />}
+            rightIcon={<ChevronRight className="w-4 h-4 text-white" />}
             style={{ backgroundColor: theme.primaryColor }}
-            className="font-semibold"
+            className="w-full sm:w-auto font-semibold justify-center min-h-[42px] px-5 rounded-xl text-white shadow-xs cursor-pointer shrink-0"
           >
             Continue
           </Button>

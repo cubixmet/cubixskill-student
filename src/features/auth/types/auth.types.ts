@@ -6,6 +6,12 @@ export interface AuthStudent {
   phone?: string;
   avatar?: string;
   avatarUrl?: string;
+  isDemoSession?: boolean;
+  demoCourseUuid?: string;
+  demoCourseTitle?: string;
+  demoStartDate?: string;
+  demoExpiryDate?: string;
+  demoDaysRemaining?: number;
 }
 
 export interface LoginCredentials {
