@@ -296,7 +296,7 @@ export const CertificatesPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
-                  onClick={() => handleDownloadPdf(previewCert.courseTitle)}
+                  onClick={() => handleDownloadPdf(previewCert.courseTitle, previewCert.uuid)}
                   className="font-semibold theme-bg"
                   leftIcon={<Download className="w-3.5 h-3.5" />}
                 >

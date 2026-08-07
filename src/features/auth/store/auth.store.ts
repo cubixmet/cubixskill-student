@@ -22,7 +22,7 @@ interface AuthState {
   clearAuthError: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   student: null,
   user: null,
   isAuthenticated: false,

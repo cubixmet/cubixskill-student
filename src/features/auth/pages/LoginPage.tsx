@@ -3,7 +3,7 @@ import { useNavigate, useLocation, useSearchParams, Link } from 'react-router-do
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Shield, Sparkles, Loader2 } from 'lucide-react';
+import { Shield, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 
 const loginSchema = z.object({

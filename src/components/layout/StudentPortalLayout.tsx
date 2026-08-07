@@ -19,7 +19,6 @@ import {
   LogOut,
   User,
   ChevronDown,
-  ArrowLeft,
   X,
 } from 'lucide-react';
 import { useAcademyStore, FIXED_PORTAL_SURFACES } from '../../stores/academy.store';
@@ -73,11 +72,6 @@ export const StudentPortalLayout: React.FC = () => {
   };
 
   const baseUrl = `/student/academies/${academyUuid}/courses/${courseUuid}`;
-
-  // Route check for Root Page vs Inner Pages
-  const isOverviewPage = location.pathname.endsWith('/overview') || location.pathname === baseUrl;
-  const isAcademiesPage = location.pathname === '/student/academies';
-  const isRootPage = isOverviewPage || isAcademiesPage;
 
   const navItems = [
     { label: 'My Course', path: `${baseUrl}/overview`, icon: BookOpen },

@@ -9,7 +9,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { useAuthStore } from '../../../stores/auth.store';
 import { useAcademyStore } from '../../../stores/academy.store';
 import { useCourseStore } from '../../../stores/course.store';
-import { useStudentCertificateStore } from '../../../stores/certificate.store';
+import { useStudentCertificateStore, type DynamicCertificateTemplateField } from '../../../stores/certificate.store';
 
 export const ProfileSettingsPage: React.FC = () => {
   const { academyUuid = '550e8400-e29b-41d4-a716-446655440000', courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501' } = useParams<{
@@ -29,9 +29,7 @@ export const ProfileSettingsPage: React.FC = () => {
   const saveStudentCertificateDetails = useStudentCertificateStore((state) => state.saveStudentCertificateDetails);
   const isCertificateProfileComplete = useStudentCertificateStore((state) => state.isCertificateProfileComplete);
 
-  const templateFields = getTemplateFieldsForCourse(courseUuid);
-  const editableFields = templateFields.filter((f) => f.studentEditable);
-  const autoFillFields = templateFields.filter((f) => !f.studentEditable && f.autoFill);
+  const templateFields: DynamicCertificateTemplateField[] = getTemplateFieldsForCourse(courseUuid);
 
   const [certFormValues, setCertFormValues] = useState<Record<string, string | number | boolean | null>>(() =>
     getStudentCertificateFieldValues(courseUuid)
@@ -249,27 +247,25 @@ export const ProfileSettingsPage: React.FC = () => {
           </div>
 
           {/* READ-ONLY AUTO-FILLED FIELDS PREVIEW */}
-          {autoFillFields.length > 0 && (
-            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block font-bold">
-                Auto-Filled System Values (Locked)
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs text-slate-600">
-                <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block font-semibold">Course Title</span>
-                  <span className="font-bold text-slate-900 truncate block">{currentCourse?.title || 'React 19 & Cloud Architecture'}</span>
-                </div>
-                <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block font-semibold">Issuing Academy</span>
-                  <span className="font-bold text-slate-900 truncate block">{currentAcademy?.name || 'Bright Academy of Technology'}</span>
-                </div>
-                <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block font-semibold">System Verification ID</span>
-                  <span className="font-mono font-bold text-slate-900 truncate block">AUTO-GEN-2026-CS</span>
-                </div>
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block font-bold">
+              Auto-Filled System Values (Locked)
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs text-slate-600">
+              <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                <span className="text-[10px] text-slate-400 block font-semibold">Course Title</span>
+                <span className="font-bold text-slate-900 truncate block">{currentCourse?.title || 'React 19 & Cloud Architecture'}</span>
+              </div>
+              <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                <span className="text-[10px] text-slate-400 block font-semibold">Issuing Academy</span>
+                <span className="font-bold text-slate-900 truncate block">{currentAcademy?.name || 'Bright Academy of Technology'}</span>
+              </div>
+              <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                <span className="text-[10px] text-slate-400 block font-semibold">System Verification ID</span>
+                <span className="font-mono font-bold text-slate-900 truncate block">AUTO-GEN-2026-CS</span>
               </div>
             </div>
-          )}
+          </div>
 
           {/* DYNAMIC STUDENT MANDATORY FORM */}
           <form
@@ -277,7 +273,7 @@ export const ProfileSettingsPage: React.FC = () => {
               e.preventDefault();
               const newErrors: Record<string, string> = {};
 
-              templateFields.forEach((field) => {
+              templateFields.forEach((field: DynamicCertificateTemplateField) => {
                 const val = certFormValues[field.key];
                 if (val === undefined || val === null || String(val).trim() === '') {
                   newErrors[field.key] = `${field.label} is required.`;
@@ -306,7 +302,7 @@ export const ProfileSettingsPage: React.FC = () => {
             className="space-y-4"
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {templateFields.map((field) => {
+              {templateFields.map((field: DynamicCertificateTemplateField) => {
                 const val = certFormValues[field.key] ?? '';
                 const err = certValidationErrors[field.key];
 
@@ -353,7 +349,7 @@ export const ProfileSettingsPage: React.FC = () => {
                         }`}
                       >
                         <option value="">Select option...</option>
-                        {(field.options || ['Grade A+', 'Grade A', 'Grade B']).map((opt) => (
+                        {(field.options || ['Grade A+', 'Grade A', 'Grade B']).map((opt: string) => (
                           <option key={opt} value={opt}>
                             {opt}
                           </option>
