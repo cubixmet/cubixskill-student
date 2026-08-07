@@ -1,7 +1,7 @@
 import React, { forwardRef } from 'react';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
-export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   label?: string;
   helperText?: string;
   error?: string;
@@ -9,6 +9,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  size?: 'sm' | 'md' | 'lg' | number;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
@@ -25,6 +26,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       readOnly,
       className = '',
       id,
+      size = 'md',
       ...props
     },
     ref
