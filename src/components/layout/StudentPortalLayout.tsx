@@ -24,6 +24,7 @@ import {
 import { useAcademyStore, FIXED_PORTAL_SURFACES } from '../../stores/academy.store';
 import { useCourseStore } from '../../stores/course.store';
 import { useAuthStore } from '../../stores/auth.store';
+import { saveLastActiveCourse } from '../../utils/last-active-course.utility';
 
 export const StudentPortalLayout: React.FC = () => {
   const { academyUuid = '550e8400-e29b-41d4-a716-446655440000', courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501' } = useParams<{
@@ -56,6 +57,12 @@ export const StudentPortalLayout: React.FC = () => {
   };
 
   useEffect(() => {
+    if (academyUuid && courseUuid) {
+      saveLastActiveCourse(academyUuid, courseUuid);
+    }
+  }, [academyUuid, courseUuid]);
+
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setProfileDropdownOpen(false);
@@ -77,15 +84,10 @@ export const StudentPortalLayout: React.FC = () => {
     { label: 'My Course', path: `${baseUrl}/overview`, icon: BookOpen },
     { label: 'Continue Learning', path: `${baseUrl}/learn`, icon: PlayCircle },
     { label: 'Curriculum', path: `${baseUrl}/curriculum`, icon: ListTree },
-    { label: 'Assignments', path: `${baseUrl}/assignments`, icon: FileCheck, featureKey: 'assignments' },
-    { label: 'Quizzes', path: `${baseUrl}/quizzes`, icon: HelpCircle, featureKey: 'quizzes' },
     { label: 'Live Classes', path: `${baseUrl}/live-classes`, icon: Video, featureKey: 'liveClasses' },
-    { label: 'Certificates', path: `${baseUrl}/certificates`, icon: Award, featureKey: 'certificates' },
-    { label: 'Announcements', path: `${baseUrl}/announcements`, icon: Bell, featureKey: 'announcements' },
     { label: 'Discussions', path: `${baseUrl}/discussions`, icon: MessageSquare, featureKey: 'discussions' },
     { label: 'Personal Chat', path: `${baseUrl}/personal-chat`, icon: MessageCircle },
-    { label: 'Downloads', path: `${baseUrl}/downloads`, icon: Download },
-    { label: 'Calendar', path: `${baseUrl}/calendar`, icon: Calendar },
+    { label: 'Certificates', path: `${baseUrl}/certificates`, icon: Award, featureKey: 'certificates' },
     { label: 'Notifications', path: `${baseUrl}/notifications`, icon: Bell },
     { label: 'Profile & Settings', path: `${baseUrl}/settings`, icon: Settings },
   ];
@@ -94,6 +96,26 @@ export const StudentPortalLayout: React.FC = () => {
     if (!item.featureKey) return true;
     return course?.features?.[item.featureKey as keyof typeof course.features] !== false;
   });
+
+  const isNavItemActive = (itemPath: string) => {
+    const normalizedCurrent = location.pathname.replace(/\/+$/, '');
+    const normalizedItem = itemPath.replace(/\/+$/, '');
+
+    if (normalizedCurrent === normalizedItem) return true;
+
+    if (
+      normalizedItem.endsWith('/overview') &&
+      (normalizedCurrent === baseUrl.replace(/\/+$/, '') || normalizedCurrent.endsWith('/overview'))
+    ) {
+      return true;
+    }
+
+    if (normalizedCurrent.startsWith(`${normalizedItem}/`)) {
+      return true;
+    }
+
+    return false;
+  };
 
   return (
     <div
@@ -196,7 +218,7 @@ export const StudentPortalLayout: React.FC = () => {
         </div>
 
         {/* DESKTOP RIGHT PROFILE & NOTIFICATIONS */}
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-2">
           <button
             type="button"
             onClick={() => navigate(`${baseUrl}/notifications`)}
@@ -293,16 +315,16 @@ export const StudentPortalLayout: React.FC = () => {
           <div className="px-3 py-2 text-[10px] font-semibold uppercase text-slate-400 tracking-wider">Course Navigation</div>
           {visibleNavItems.map((item) => {
             const Icon = item.icon;
-            const isSelected = location.pathname === item.path || (item.path.endsWith('/overview') && location.pathname === baseUrl);
+            const isSelected = isNavItemActive(item.path);
 
             return (
               <button
                 key={item.path}
                 type="button"
                 onClick={() => navigate(item.path)}
-                className={`w-full px-3 py-2.5 rounded-xl font-semibold text-xs flex items-center justify-between transition-all cursor-pointer min-h-[44px] ${
+                className={`w-full px-3 py-2.5 rounded-xl font-medium text-xs flex items-center justify-between transition-all cursor-pointer min-h-[44px] ${
                   isSelected
-                    ? 'shadow-2xs'
+                    ? 'shadow-2xs font-semibold'
                     : 'text-[#475569] hover:bg-slate-100 hover:text-slate-900'
                 }`}
                 style={{
@@ -310,15 +332,15 @@ export const StudentPortalLayout: React.FC = () => {
                   color: isSelected ? theme.primaryColor : undefined,
                 }}
               >
-                <div className="flex items-center gap-2.5 truncate">
+                <div className="inline-flex items-center gap-2.5 truncate font-medium">
                   <Icon
                     className="w-4 h-4 shrink-0"
                     style={{ color: isSelected ? theme.primaryColor : '#64748B' }}
                   />
-                  <span className="truncate">{item.label}</span>
+                  <span className="truncate min-w-0">{item.label}</span>
                 </div>
                 <ChevronRight
-                  className="w-3.5 h-3.5"
+                  className="w-3.5 h-3.5 shrink-0"
                   style={{ color: isSelected ? theme.primaryColor : '#CBD5E1' }}
                 />
               </button>
@@ -327,72 +349,78 @@ export const StudentPortalLayout: React.FC = () => {
         </aside>
 
         {/* ROUTE CONTENT PAGE AREA */}
-        <main className="flex-1 p-4 md:p-6 overflow-y-auto pb-[88px] md:pb-6 hide-scrollbar">
+        <main className={`flex-1 overflow-y-auto hide-scrollbar ${
+          location.pathname.includes('/personal-chat')
+            ? 'p-0 sm:p-4 md:p-6 pb-0 md:pb-6'
+            : 'p-4 md:p-6 pb-[88px] md:pb-6'
+        }`}>
           <Outlet />
         </main>
       </div>
 
-      {/* 3. MOBILE BOTTOM NAVIGATION (<768px) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 pb-[env(safe-area-inset-bottom)] shadow-lg font-sans text-[10px] font-semibold">
-        <div className="grid h-16 grid-cols-5 items-center">
-          <button
-            type="button"
-            onClick={() => navigate(`${baseUrl}/overview`)}
-            className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer"
-            style={{
-              color: (location.pathname.endsWith('/overview') || location.pathname === baseUrl) ? theme.primaryColor : '#64748B',
-            }}
-          >
-            <BookOpen className="w-4 h-4" />
-            <span>My Course</span>
-          </button>
+      {/* 3. MOBILE BOTTOM NAVIGATION (<768px) - Hidden on /personal-chat */}
+      {!location.pathname.includes('/personal-chat') && (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 pb-[env(safe-area-inset-bottom)] shadow-lg font-sans text-[10px] font-semibold">
+          <div className="grid h-16 grid-cols-5 items-center">
+            <button
+              type="button"
+              onClick={() => navigate(`${baseUrl}/overview`)}
+              className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer"
+              style={{
+                color: isNavItemActive(`${baseUrl}/overview`) ? theme.primaryColor : '#64748B',
+              }}
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>My Course</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => navigate(`${baseUrl}/learn`)}
-            className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer"
-            style={{
-              color: location.pathname.endsWith('/learn') ? theme.primaryColor : '#64748B',
-            }}
-          >
-            <PlayCircle className="w-4 h-4" />
-            <span>Learn</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => navigate(`${baseUrl}/learn`)}
+              className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer"
+              style={{
+                color: isNavItemActive(`${baseUrl}/learn`) ? theme.primaryColor : '#64748B',
+              }}
+            >
+              <PlayCircle className="w-4 h-4" />
+              <span>Learn</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => navigate(`${baseUrl}/live-classes`)}
-            className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer"
-            style={{
-              color: location.pathname.endsWith('/live-classes') ? theme.primaryColor : '#64748B',
-            }}
-          >
-            <Video className="w-4 h-4" />
-            <span>Live</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => navigate(`${baseUrl}/live-classes`)}
+              className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer"
+              style={{
+                color: isNavItemActive(`${baseUrl}/live-classes`) ? theme.primaryColor : '#64748B',
+              }}
+            >
+              <Video className="w-4 h-4" />
+              <span>Live</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => navigate(`${baseUrl}/settings`)}
-            className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer"
-            style={{
-              color: location.pathname.endsWith('/settings') ? theme.primaryColor : '#64748B',
-            }}
-          >
-            <User className="w-4 h-4" />
-            <span>Profile</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => navigate(`${baseUrl}/settings`)}
+              className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer"
+              style={{
+                color: isNavItemActive(`${baseUrl}/settings`) ? theme.primaryColor : '#64748B',
+              }}
+            >
+              <User className="w-4 h-4" />
+              <span>Profile</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(true)}
-            className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] text-slate-600 hover:text-slate-900 cursor-pointer"
-          >
-            <Menu className="w-4 h-4 text-slate-700" />
-            <span>More</span>
-          </button>
-        </div>
-      </nav>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] text-slate-600 hover:text-slate-900 cursor-pointer"
+            >
+              <Menu className="w-4 h-4 text-slate-700" />
+              <span>More</span>
+            </button>
+          </div>
+        </nav>
+      )}
 
       {/* 4. FULL-HEIGHT RIGHT SLIDE-OVER MOBILE DRAWER MENU */}
       {mobileMenuOpen && (
@@ -436,7 +464,7 @@ export const StudentPortalLayout: React.FC = () => {
 
               {visibleNavItems.map((item) => {
                 const Icon = item.icon;
-                const isSelected = location.pathname === item.path || (item.path.endsWith('/overview') && location.pathname === baseUrl);
+                const isSelected = isNavItemActive(item.path);
 
                 return (
                   <button
@@ -446,15 +474,15 @@ export const StudentPortalLayout: React.FC = () => {
                       setMobileMenuOpen(false);
                       navigate(item.path);
                     }}
-                    className="w-full h-11 px-3 rounded-xl font-semibold flex items-center justify-between transition-all cursor-pointer min-h-[44px] whitespace-nowrap"
+                    className="w-full h-11 px-3 rounded-xl font-medium flex items-center justify-between transition-all cursor-pointer min-h-[44px] whitespace-nowrap"
                     style={{
                       backgroundColor: isSelected ? (theme.primarySoft || '#EFF6FF') : undefined,
                       color: isSelected ? theme.primaryColor : '#1E293B',
                     }}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="inline-flex items-center gap-3 min-w-0">
                       <Icon className="w-4 h-4 shrink-0" style={{ color: isSelected ? theme.primaryColor : '#64748B' }} />
-                      <span className="truncate">{item.label}</span>
+                      <span className="truncate min-w-0 font-medium">{item.label}</span>
                     </div>
                     <ChevronRight className="w-4 h-4 shrink-0" style={{ color: isSelected ? theme.primaryColor : '#CBD5E1' }} />
                   </button>
@@ -493,6 +521,19 @@ export const StudentPortalLayout: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 5. FLOATING PERSONAL CHAT BUTTON (Hidden on /personal-chat route) */}
+      {!location.pathname.includes('/personal-chat') && (
+        <button
+          type="button"
+          aria-label="Open personal chat"
+          onClick={() => navigate(`${baseUrl}/personal-chat`)}
+          style={{ backgroundColor: theme.primaryColor }}
+          className="fixed right-5 bottom-[84px] md:bottom-[calc(30px+env(safe-area-inset-bottom))] z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-md text-white hover:opacity-90 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2"
+        >
+          <MessageCircle className="h-5 w-5 shrink-0 text-white" />
+        </button>
       )}
     </div>
   );

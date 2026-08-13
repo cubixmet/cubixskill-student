@@ -1,512 +1,537 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  MessageSquare,
-  Plus,
+  Send,
+  Paperclip,
+  FileText,
+  Image as ImageIcon,
   ArrowLeft,
-  MoreVertical,
-  CheckCircle,
-  RotateCcw,
-  Info,
-  CheckCircle2,
-  Lock,
+  X,
+  Building2,
+  BookOpen,
+  ChevronDown,
+  Trash2,
+  FileArchive,
+  Download,
+  Eye,
+  CheckCheck,
 } from 'lucide-react';
 import { useAcademyStore } from '../../../stores/academy.store';
 import { useCourseStore } from '../../../stores/course.store';
 import { useAuthStore } from '../../../stores/auth.store';
-import { Button } from '../../../components/ui/Button';
-import { Modal } from '../../../components/ui/Modal';
 import {
   usePersonalChatStore,
   type PersonalMessage,
+  type ChatAttachment,
+  type ChatContext,
 } from '../store/personal-chat.store';
 
-import { ConversationList } from '../components/ConversationList';
-import { MessageItem } from '../components/MessageItem';
-import { MessageComposer } from '../components/MessageComposer';
-import { ConversationDetailsPanel } from '../components/ConversationDetailsPanel';
-import { NewConversationModal } from '../components/NewConversationModal';
-
 export const PersonalChatPage: React.FC = () => {
-  const {
-    academyUuid = '550e8400-e29b-41d4-a716-446655440000',
-    courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501',
-    conversationUuid,
-  } = useParams<{
+  const { academyUuid = '550e8400-e29b-41d4-a716-446655440000', courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501' } = useParams<{
     academyUuid: string;
     courseUuid: string;
-    conversationUuid?: string;
   }>();
 
   const navigate = useNavigate();
 
   const academies = useAcademyStore((state) => state.academies);
   const courses = useCourseStore((state) => state.courses);
-  const user = useAuthStore((state) => state.user);
+  const student = useAuthStore((state) => state.student);
 
   const academy = academies.find((a) => a.uuid === academyUuid);
-  const course = courses.find((c) => c.academyUuid === academyUuid && c.uuid === courseUuid);
+  const course = courses.find((c) => c.academyUuid === academyUuid && (c.uuid === courseUuid || c.courseUuid === courseUuid));
+  const studentUuid = student?.uuid || 'std-production-1';
+  const theme = academy?.theme || { primaryColor: '#2563EB' };
 
-  const theme = academy?.theme || {
-    primaryColor: '#2563EB',
-    primaryHover: '#1D4ED8',
-    primarySoft: '#EFF6FF',
-  };
-
-  // Personal Chat store hooks
-  const getConversationsByCourse = usePersonalChatStore((state) => state.getConversationsByCourse);
-  const getConversationByUuid = usePersonalChatStore((state) => state.getConversationByUuid);
-  const getMessagesByConversation = usePersonalChatStore((state) => state.getMessagesByConversation);
-  const sendMessage = usePersonalChatStore((state) => state.sendMessage);
-  const markConversationRead = usePersonalChatStore((state) => state.markConversationRead);
-  const markConversationResolved = usePersonalChatStore((state) => state.markConversationResolved);
-  const reopenConversation = usePersonalChatStore((state) => state.reopenConversation);
-  const deleteStudentMessage = usePersonalChatStore((state) => state.deleteStudentMessage);
-  const editStudentMessage = usePersonalChatStore((state) => state.editStudentMessage);
-  const retryMessage = usePersonalChatStore((state) => state.retryMessage);
+  // Personal Chat Store
+  const conversations = usePersonalChatStore((state) => state.conversations);
   const messagesMap = usePersonalChatStore((state) => state.messages);
+  const sendMessage = usePersonalChatStore((state) => state.sendMessage);
+  const deleteStudentMessage = usePersonalChatStore((state) => state.deleteStudentMessage);
 
-  const courseConversations = getConversationsByCourse(courseUuid);
-  const activeConversation = conversationUuid ? getConversationByUuid(conversationUuid) : undefined;
-  const activeMessages = activeConversation ? getMessagesByConversation(activeConversation.uuid) : [];
+  // Direct Student ↔ Academy Single Conversation
+  const activeConversation =
+    conversations.find((c) => c.studentUuid === studentUuid && c.academyUuid === academyUuid) || conversations[0];
 
-  // State
-  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
-  const [replyingToMessage, setReplyingToMessage] = useState<PersonalMessage | undefined>(undefined);
-  const [showRightPanelDesktop, setShowRightPanelDesktop] = useState(true);
-  const [isMobileDetailsOpen, setIsMobileDetailsOpen] = useState(false);
-  const [isMobileMoreMenuOpen, setIsMobileMoreMenuOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const allMessages: PersonalMessage[] = activeConversation
+    ? messagesMap[activeConversation.uuid] || []
+    : [];
 
+  // Message History Pagination State
+  const [displayedCount, setDisplayedCount] = useState<number>(15);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  const visibleMessages = allMessages.slice(Math.max(0, allMessages.length - displayedCount));
+  const hasOlderMessages = allMessages.length > displayedCount;
+
+  // Form State
+  const [messageInput, setMessageInput] = useState('');
+  const [selectedFile, setSelectedFile] = useState<ChatAttachment | null>(null);
+  const [chatContext, setChatContext] = useState<ChatContext | null>({
+    courseTitle: course?.title || 'Full Stack React 19 & Cloud Architecture',
+    lessonTitle: '1.1 React 19 Compiler Mechanics',
+  });
+
+  // Scroll & Position Tracking
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll on new messages & mark read
+  const [isNearBottom, setIsNearBottom] = useState(true);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [composerError, setComposerError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-scroll to latest message on initial load after skeleton resolve
+  useLayoutEffect(() => {
+    const timer = setTimeout(() => {
+      setIsInitialLoading(false);
+      messagesEndRef.current?.scrollIntoView({ block: 'end' });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [activeConversation?.uuid]);
+
+  // Handle scroll events for "isNearBottom" & "Load older" scroll anchoring
+  const handleScroll = () => {
+    if (!messagesContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const nearBottom = distanceFromBottom < 120;
+
+    setIsNearBottom(nearBottom);
+    setShowScrollToBottom(!nearBottom && distanceFromBottom > 200);
+  };
+
+  // Scroll to latest message on new message if near bottom
   useEffect(() => {
-    if (activeConversation && activeConversation.unreadCount > 0) {
-      markConversationRead(activeConversation.uuid);
+    if (isNearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [conversationUuid, activeMessages.length]);
+  }, [allMessages.length, isNearBottom]);
 
-  // Handle route selection
-  const handleSelectConversation = (uuid: string) => {
-    navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/personal-chat/${uuid}`);
+  const scrollToBottomManual = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    setShowScrollToBottom(false);
   };
 
-  const handleBackToList = () => {
-    navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/personal-chat`);
+  // Load older messages while preserving scroll height position
+  const handleLoadOlderMessages = () => {
+    if (isLoadingOlder || !messagesContainerRef.current) return;
+    setIsLoadingOlder(true);
+    const container = messagesContainerRef.current;
+    const oldScrollHeight = container.scrollHeight;
+
+    setTimeout(() => {
+      setDisplayedCount((prev) => prev + 15);
+      requestAnimationFrame(() => {
+        if (container) {
+          const newScrollHeight = container.scrollHeight;
+          container.scrollTop = newScrollHeight - oldScrollHeight;
+        }
+        setIsLoadingOlder(false);
+      });
+    }, 300);
   };
 
-  const handleSendMessage = (content: string, replyToUuid?: string, attachments?: any[]) => {
-    if (!activeConversation || !user) return;
+  // Auto-growing textarea handler (1 to 4 rows)
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMessageInput(e.target.value);
+    if (composerError) setComposerError(null);
+
+    const target = e.target;
+    target.style.height = 'auto';
+    const newHeight = Math.min(target.scrollHeight, 120);
+    target.style.height = `${Math.max(42, newHeight)}px`;
+  };
+
+  // File Upload Handler with Validation
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      setComposerError('File size exceeds 10MB limit.');
+      setTimeout(() => setComposerError(null), 4000);
+      return;
+    }
+
+    const type: ChatAttachment['type'] = file.type.startsWith('image/')
+      ? 'image'
+      : file.type.includes('pdf')
+      ? 'pdf'
+      : 'document';
+
+    setSelectedFile({
+      id: `att-${Date.now()}`,
+      name: file.name,
+      type,
+      size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+      url: URL.createObjectURL(file),
+    });
+    setComposerError(null);
+  };
+
+  // Fallback Mock Attachment if input canceled
+  const handleAttachMock = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleSendMessage = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!messageInput.trim() && !selectedFile) return;
+    if (!activeConversation) return;
 
     sendMessage({
       conversationUuid: activeConversation.uuid,
-      senderUuid: user.id || 'usr-student-01',
-      senderName: user.fullName || 'Alex Rivers',
-      senderAvatar: user.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+      senderUuid: studentUuid,
+      senderName: student?.name || 'Alex Student',
+      senderAvatar: student?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120',
       senderRole: 'student',
-      content,
-      replyToMessageUuid: replyToUuid,
-      attachments,
+      content: messageInput.trim(),
+      attachments: selectedFile ? [selectedFile] : [],
     });
+
+    setMessageInput('');
+    setSelectedFile(null);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '42px';
+    }
+
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 50);
   };
 
-  // FEATURE DISABLED CHECK
-  if (course?.features?.personalChat === false) {
-    return (
-      <div className="max-w-xl mx-auto py-16 text-center space-y-4 font-sans text-xs">
-        <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-amber-600 shadow-2xs">
-          <Lock className="w-6 h-6" />
-        </div>
-        <div className="space-y-1">
-          <h2 className="text-xl font-bold text-slate-900">Personal Chat is Disabled</h2>
-          <p className="text-slate-500 font-normal text-sm">
-            Personal Chat is disabled for this course. Contact the academy through the available support channel.
-          </p>
-        </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/overview`)}
-          className="font-semibold px-5"
-        >
-          Return to Course Overview
-        </Button>
-      </div>
-    );
-  }
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  // Group messages by date
+  const formatDateGroup = (dateString: string) => {
+    const d = new Date(dateString);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) return 'Today';
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
 
   return (
-    <div className="h-[calc(100vh-6rem)] md:h-[calc(100vh-5.5rem)] flex flex-col font-sans text-xs text-slate-900 overflow-hidden relative hide-scrollbar">
-      {/* TOAST NOTIFICATION */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white font-semibold text-xs px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-slate-800 animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
-      {/* 1. DESKTOP PAGE HEADER */}
-      <div className="hidden md:flex items-center justify-between pb-4 border-b border-slate-200/80 mb-3 shrink-0">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5" style={{ color: theme.primaryColor }} />
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Personal Chat</h1>
-          </div>
-          <p className="text-xs text-slate-500 font-normal">
-            Send private questions to your instructor or course support team.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={() => setIsNewModalOpen(true)}
-            style={{ backgroundColor: theme.primaryColor }}
-            className="font-semibold text-white px-4 h-10 cursor-pointer hover:opacity-90"
-            leftIcon={<Plus className="w-4 h-4" />}
+    <div className="flex flex-col h-[calc(100dvh-4rem)] min-h-0 max-w-5xl mx-auto w-full font-sans text-xs text-left bg-white sm:rounded-2xl sm:border border-slate-200 shadow-2xs overflow-hidden">
+      {/* 1. COMPACT ACADEMY CHAT HEADER */}
+      <header className="px-3 sm:px-4 py-2.5 bg-slate-900 text-white flex items-center justify-between gap-2.5 border-b border-slate-800 shrink-0 z-10 min-h-[56px]">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <button
+            type="button"
+            aria-label="Back"
+            onClick={() => navigate(-1)}
+            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center"
           >
-            New Conversation
-          </Button>
+            <ArrowLeft className="w-4 h-4" />
+          </button>
 
-          {activeConversation && (
+          <img
+            src={academy?.logoUrl || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=100'}
+            alt={academy?.name || 'Academy Logo'}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover border border-slate-700/80 shrink-0 shadow-xs"
+          />
+
+          <div className="min-w-0">
+            <h1 className="font-semibold text-sm sm:text-base text-white truncate leading-tight">
+              {academy?.name || 'CodeVerse Software Academy'}
+            </h1>
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-normal">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="truncate">Academy Support • Online</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* 2. MESSAGES HISTORY (SCROLLABLE ONLY AREA) */}
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 bg-slate-50/70 relative hide-scrollbar"
+      >
+        {/* LOAD OLDER MESSAGES BUTTON */}
+        {hasOlderMessages && (
+          <div className="text-center pt-1 pb-2">
             <button
               type="button"
-              onClick={() => setShowRightPanelDesktop(!showRightPanelDesktop)}
-              className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 transition-all cursor-pointer min-h-[40px] min-w-[40px] flex items-center justify-center"
-              title="Toggle Details Panel"
+              onClick={handleLoadOlderMessages}
+              disabled={isLoadingOlder}
+              className="px-3 py-1 rounded-full text-[11px] font-medium bg-white text-slate-600 border border-slate-200 shadow-2xs hover:bg-slate-50 cursor-pointer disabled:opacity-50"
             >
-              <Info className="w-4 h-4" />
+              {isLoadingOlder ? 'Loading older messages...' : 'Load older messages'}
             </button>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
 
-      {/* 2. MAIN LAYOUT GRID (DESKTOP & MOBILE CONDITIONAL) */}
-      <div className="flex-1 min-h-0 relative">
-        {/* MOBILE ACTIVE CHAT HEADER (<768px) */}
-        {conversationUuid && (
-          <div className="md:hidden flex items-center justify-between bg-white border-b border-slate-200 px-3 py-2.5 sticky top-0 z-30 shadow-2xs">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <button
-                type="button"
-                onClick={handleBackToList}
-                className="p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
-                title="Back to conversations"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
+        {/* INITIAL SKELETON LOADING STATE */}
+        {isInitialLoading ? (
+          <div className="space-y-3 p-2">
+            <div className="flex justify-center my-2">
+              <span className="text-[11px] font-medium text-slate-400 bg-white/80 border border-slate-200/60 px-3 py-1 rounded-full animate-pulse">
+                Loading conversation...
+              </span>
+            </div>
+            <div className="flex flex-col items-start space-y-1">
+              <div className="w-48 h-12 bg-white rounded-2xl rounded-bl-xs border border-slate-200/80 animate-pulse" />
+            </div>
+            <div className="flex flex-col items-end space-y-1">
+              <div className="w-56 h-14 bg-blue-200/60 rounded-2xl rounded-br-xs animate-pulse" />
+            </div>
+            <div className="flex flex-col items-start space-y-1">
+              <div className="w-64 h-16 bg-white rounded-2xl rounded-bl-xs border border-slate-200/80 animate-pulse" />
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* EMPTY CONVERSATION STATE */}
+            {visibleMessages.length === 0 && (
+              <div className="h-full flex flex-col items-center justify-center p-6 text-center space-y-2 max-w-sm mx-auto text-slate-500">
+                <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 shadow-2xs">
+                  <Building2 className="w-6 h-6" />
+                </div>
+                <span className="font-semibold text-xs text-slate-900 block">Start a conversation with your academy</span>
+                <p className="text-[11px] text-slate-500 leading-relaxed font-normal">
+                  Ask questions about your course curriculum, lessons, assignments, or account support.
+                </p>
+              </div>
+            )}
+          </>
+        )}
 
-              {activeConversation && (
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="relative shrink-0">
-                    <img
-                      src={activeConversation.instructorAvatar}
-                      alt={activeConversation.instructorName}
-                      className="w-9 h-9 rounded-full object-cover border border-slate-200"
-                    />
-                    {activeConversation.instructorStatus === 'online' && (
-                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <span className="font-semibold text-xs text-slate-900 block truncate leading-tight">
-                      {activeConversation.instructorName}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-normal truncate block">
-                      {activeConversation.instructorStatus === 'online' ? 'Online' : 'Replies in few hours'}
-                    </span>
-                  </div>
+        {/* MESSAGES LISTING */}
+        {visibleMessages.map((msg, index) => {
+          const isMe = msg.senderUuid === studentUuid || msg.senderRole === 'student';
+          const prevMsg = visibleMessages[index - 1];
+          const showDateSeparator =
+            !prevMsg || formatDateGroup(prevMsg.createdAt) !== formatDateGroup(msg.createdAt);
+
+          return (
+            <React.Fragment key={msg.uuid}>
+              {/* DATE SEPARATOR */}
+              {showDateSeparator && (
+                <div className="flex justify-center my-2">
+                  <span className="text-[11px] font-medium text-slate-500 bg-white/90 border border-slate-200/60 px-2.5 py-0.5 rounded-full shadow-2xs">
+                    {formatDateGroup(msg.createdAt)}
+                  </span>
                 </div>
               )}
-            </div>
 
-            <button
-              type="button"
-              onClick={() => setIsMobileMoreMenuOpen(true)}
-              className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 cursor-pointer shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
-              title="More Options"
-            >
-              <MoreVertical className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {/* MOBILE LIST HEADER (<768px when NO conversation selected) */}
-        {!conversationUuid && (
-          <div className="md:hidden flex items-center justify-between bg-white border-b border-slate-200 px-3 py-2.5 mb-2 sticky top-0 z-30">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/overview`)}
-                className="p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
-                title="Back to Course Overview"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-              <h1 className="text-base font-bold text-slate-900 tracking-tight">Personal Chat</h1>
-            </div>
-
-            <Button
-              size="sm"
-              onClick={() => setIsNewModalOpen(true)}
-              style={{ backgroundColor: theme.primaryColor }}
-              className="font-semibold text-white px-3 h-9 text-xs cursor-pointer"
-              leftIcon={<Plus className="w-3.5 h-3.5" />}
-            >
-              New
-            </Button>
-          </div>
-        )}
-
-        {/* DESKTOP 3-COLUMN / MOBILE SINGLE COLUMN WRAPPER */}
-        <div
-          className="h-full grid grid-cols-1 md:grid-cols-[320px_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)_280px] gap-4"
-          style={{
-            gridTemplateColumns: showRightPanelDesktop
-              ? undefined
-              : '320px minmax(0, 1fr)',
-          }}
-        >
-          {/* COLUMN 1: LEFT CONVERSATION LIST (Visible on Desktop always, or Mobile when no conversationUuid selected) */}
-          <div className={`${conversationUuid ? 'hidden md:block' : 'block'} h-full overflow-hidden`}>
-            <ConversationList
-              conversations={courseConversations}
-              activeConversationUuid={conversationUuid}
-              onSelectConversation={handleSelectConversation}
-              onOpenNewModal={() => setIsNewModalOpen(true)}
-              messagesMap={messagesMap}
-              theme={theme}
-            />
-          </div>
-
-          {/* COLUMN 2: CENTER ACTIVE CHAT PANEL (Visible on Desktop always, or Mobile when conversationUuid IS selected) */}
-          <div className={`${!conversationUuid ? 'hidden md:flex' : 'flex'} flex-col h-full bg-white border border-slate-200/80 rounded-2xl shadow-2xs overflow-hidden`}>
-            {activeConversation ? (
-              <div className="flex-1 flex flex-col h-full min-h-0">
-                {/* CENTER DESKTOP CHAT TOP BAR */}
-                <div className="hidden md:flex items-center justify-between p-3.5 border-b border-slate-100 bg-slate-50/50 shrink-0">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={activeConversation.instructorAvatar}
-                      alt={activeConversation.instructorName}
-                      className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-2xs shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <h2 className="font-semibold text-xs md:text-sm text-slate-900 truncate leading-snug">
-                        {activeConversation.subject}
-                      </h2>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500 font-normal">
-                        <span>{activeConversation.instructorName}</span>
-                        <span>•</span>
-                        <span className="capitalize">{activeConversation.instructorRole}</span>
-                        {activeConversation.relatedTitle && (
-                          <>
-                            <span>•</span>
-                            <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[10px] font-semibold truncate max-w-[150px]">
-                              {activeConversation.relatedTitle}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* RESOLVED BANNER (Section 13) */}
-                {activeConversation.status === 'resolved' && (
-                  <div className="p-3 bg-amber-50 border-b border-amber-200/80 px-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shrink-0 animate-in fade-in">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span className="font-semibold text-xs text-amber-900">
-                        This conversation has been resolved.
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => reopenConversation(activeConversation.uuid)}
-                        className="px-3 py-1.5 rounded-lg bg-amber-600 text-white font-semibold text-xs hover:bg-amber-700 transition-all cursor-pointer shadow-2xs"
-                      >
-                        Reopen Conversation
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsNewModalOpen(true)}
-                        className="px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-900 font-semibold text-xs hover:bg-amber-100 transition-all cursor-pointer"
-                      >
-                        Start New Conversation
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* MESSAGE HISTORY SCROLL BODY */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 hide-scrollbar min-h-0 bg-[#F8FAFC]/50">
-                  {activeMessages.length === 0 ? (
-                    <div className="py-12 text-center text-slate-400 space-y-2">
-                      <MessageSquare className="w-8 h-8 mx-auto text-slate-300" />
-                      <p className="font-semibold text-slate-600">No messages in this thread yet.</p>
-                      <p className="text-xs font-normal">Type below to send a message to your instructor.</p>
-                    </div>
-                  ) : (
-                    activeMessages.map((msg) => {
-                      const quoted = msg.replyToMessageUuid
-                        ? activeMessages.find((m) => m.uuid === msg.replyToMessageUuid)
-                        : undefined;
-
-                      return (
-                        <MessageItem
-                          key={msg.uuid}
-                          message={msg}
-                          quotedMessage={quoted}
-                          onReply={(m) => setReplyingToMessage(m)}
-                          onDelete={(uuid) => deleteStudentMessage(uuid, activeConversation.uuid)}
-                          onEdit={(uuid, content) => editStudentMessage(uuid, activeConversation.uuid, content)}
-                          onRetry={(uuid) => retryMessage(uuid, activeConversation.uuid)}
-                          theme={theme}
-                        />
-                      );
-                    })
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
-
-                {/* COMPOSER */}
-                <MessageComposer
-                  onSendMessage={handleSendMessage}
-                  replyingToMessage={replyingToMessage}
-                  onCancelReply={() => setReplyingToMessage(undefined)}
-                  isDisabled={activeConversation.status === 'closed'}
-                  disabledReason="This conversation is closed by policy. Contact academy support."
-                  theme={theme}
-                />
-              </div>
-            ) : (
-              /* NO SELECTED CONVERSATION PLACEHOLDER */
-              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-3 bg-white">
+              {/* MESSAGE BUBBLE */}
+              <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-1`}>
                 <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center text-slate-400 border border-slate-200 shadow-2xs"
-                  style={{ backgroundColor: theme.primarySoft }}
+                  className={`max-w-[85%] sm:max-w-[65%] min-w-0 p-3 rounded-2xl shadow-2xs space-y-1.5 ${
+                    isMe
+                      ? 'text-white rounded-br-xs'
+                      : 'bg-white text-slate-900 border border-slate-200/90 rounded-bl-xs'
+                  }`}
+                  style={{ backgroundColor: isMe ? theme.primaryColor : undefined }}
                 >
-                  <MessageSquare className="w-7 h-7" style={{ color: theme.primaryColor }} />
-                </div>
-                <div className="space-y-1 max-w-sm">
-                  <h3 className="text-base font-bold text-slate-900">Select a Conversation</h3>
-                  <p className="text-xs text-slate-500 font-normal">
-                    Choose an existing discussion from the left panel or start a new private message to your instructor.
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => setIsNewModalOpen(true)}
-                  style={{ backgroundColor: theme.primaryColor }}
-                  className="font-semibold text-white px-4 h-10 cursor-pointer"
-                  leftIcon={<Plus className="w-4 h-4" />}
-                >
-                  Start New Conversation
-                </Button>
-              </div>
-            )}
-          </div>
+                  {/* SENDER NAME (ACADEMY SIDE ONLY) */}
+                  {!isMe && (
+                    <span className="font-semibold text-[11px] text-slate-600 block truncate">
+                      {msg.senderName || 'Academy Support'}
+                    </span>
+                  )}
 
-          {/* COLUMN 3: RIGHT DETAILS PANEL (DESKTOP) */}
-          {activeConversation && showRightPanelDesktop && (
-            <div className="hidden lg:block h-full overflow-hidden">
-              <ConversationDetailsPanel
-                conversation={activeConversation}
-                messages={activeMessages}
-                theme={theme}
-              />
-            </div>
-          )}
-        </div>
+                  {/* MESSAGE CONTENT */}
+                  {msg.content && (
+                    <p className="text-[14px] font-normal leading-relaxed break-words break-all whitespace-pre-line">
+                      {msg.content}
+                    </p>
+                  )}
+
+                  {/* ATTACHMENTS */}
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      {msg.attachments.map((att) => (
+                        <div key={att.id} className="rounded-xl overflow-hidden min-w-0">
+                          {att.type === 'image' ? (
+                            <div className="space-y-1">
+                              <img
+                                src={att.url}
+                                alt={att.name}
+                                className="max-h-48 rounded-lg object-cover w-full border border-black/10"
+                              />
+                              <span className="text-[10px] opacity-80 block truncate">{att.name}</span>
+                            </div>
+                          ) : (
+                            <div
+                              className={`p-2.5 rounded-xl flex items-center justify-between gap-2 border text-xs ${
+                                isMe ? 'bg-white/10 border-white/20 text-white' : 'bg-slate-50 border-slate-200 text-slate-800'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <FileText className="w-4 h-4 shrink-0" />
+                                <div className="min-w-0">
+                                  <span className="font-semibold text-[11px] block truncate">{att.name}</span>
+                                  {att.size && <span className="text-[10px] opacity-75 block">{att.size}</span>}
+                                </div>
+                              </div>
+                              <a
+                                href={att.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`px-2 py-1 rounded-lg text-[10px] font-semibold shrink-0 ${
+                                  isMe ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                                }`}
+                              >
+                                View
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* TIMESTAMP & READ TICK */}
+                  <div
+                    className={`flex items-center justify-end gap-1 text-[10px] font-normal opacity-75 ${
+                      isMe ? 'text-white' : 'text-slate-400'
+                    }`}
+                  >
+                    <span>
+                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                    </span>
+                    {isMe && <CheckCheck className="w-3 h-3 text-white/90 shrink-0" />}
+                  </div>
+                </div>
+
+                {/* DELETE MESSAGE OPTION FOR STUDENT */}
+                {isMe && (
+                  <button
+                    type="button"
+                    onClick={() => deleteStudentMessage(activeConversation.uuid, msg.uuid)}
+                    className="text-[10px] text-slate-400 hover:text-red-500 font-medium px-1 cursor-pointer transition-colors"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            </React.Fragment>
+          );
+        })}
+
+        {/* BOTTOM SCROLL ANCHOR */}
+        <div ref={messagesEndRef} className="h-1 pb-3" />
       </div>
 
-      {/* NEW CONVERSATION MODAL */}
-      <NewConversationModal
-        isOpen={isNewModalOpen}
-        onClose={() => setIsNewModalOpen(false)}
-        academyUuid={academyUuid}
-        courseUuid={courseUuid}
-        studentUuid={user?.id || 'usr-student-01'}
-        studentName={user?.fullName || 'Alex Rivers'}
-        studentAvatar={user?.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'}
-        theme={theme}
-        onSuccess={(convUuid) => {
-          setToastMessage('Private conversation started!');
-          setTimeout(() => setToastMessage(null), 3000);
-          handleSelectConversation(convUuid);
-        }}
-      />
-
-      {/* MOBILE MORE MENU / DETAILS SHEET */}
-      {activeConversation && (
-        <Modal
-          isOpen={isMobileMoreMenuOpen}
-          onClose={() => setIsMobileMoreMenuOpen(false)}
-          title="Conversation Options"
-          maxWidth="sm"
+      {/* FLOATING SCROLL TO LATEST BUTTON */}
+      {showScrollToBottom && (
+        <button
+          type="button"
+          onClick={scrollToBottomManual}
+          className="absolute bottom-20 right-4 z-20 px-3 py-1.5 rounded-full bg-slate-900 text-white text-[11px] font-medium shadow-md hover:bg-slate-800 transition-all flex items-center gap-1 cursor-pointer"
         >
-          <div className="space-y-1 font-sans text-xs py-1">
-            <button
-              type="button"
-              onClick={() => {
-                setIsMobileMoreMenuOpen(false);
-                setIsMobileDetailsOpen(true);
-              }}
-              className="w-full p-3 rounded-xl font-semibold flex items-center gap-3 hover:bg-slate-100 text-slate-800 cursor-pointer"
-            >
-              <Info className="w-4 h-4" style={{ color: theme.primaryColor }} />
-              <span>View Details &amp; Shared Files</span>
-            </button>
+          <span>↓ Latest message</span>
+        </button>
+      )}
 
-            {activeConversation.status === 'resolved' ? (
-              <button
-                type="button"
-                onClick={() => {
-                  reopenConversation(activeConversation.uuid);
-                  setIsMobileMoreMenuOpen(false);
-                }}
-                className="w-full p-3 rounded-xl font-semibold flex items-center gap-3 hover:bg-emerald-50 text-emerald-700 cursor-pointer"
-              >
-                <RotateCcw className="w-4 h-4 text-emerald-600" />
-                <span>Reopen Conversation</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  markConversationResolved(activeConversation.uuid);
-                  setIsMobileMoreMenuOpen(false);
-                }}
-                className="w-full p-3 rounded-xl font-semibold flex items-center gap-3 hover:bg-emerald-50 text-emerald-700 cursor-pointer"
-              >
-                <CheckCircle className="w-4 h-4 text-emerald-600" />
-                <span>Mark as Resolved</span>
-              </button>
-            )}
+      {/* 3. CONTEXT REFERENCE CHIP */}
+      {chatContext && (
+        <div className="px-3 sm:px-4 py-1.5 bg-blue-50 border-t border-blue-100 flex items-center justify-between text-[11px] text-blue-950 font-semibold shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <BookOpen className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+            <span className="truncate">Regarding: {chatContext.lessonTitle || chatContext.courseTitle}</span>
           </div>
-        </Modal>
+          <button
+            type="button"
+            aria-label="Remove context"
+            onClick={() => setChatContext(null)}
+            className="text-blue-500 hover:text-blue-700 cursor-pointer p-1"
+          >
+            <X className="w-3.5 h-3.5 shrink-0" />
+          </button>
+        </div>
       )}
 
-      {/* MOBILE DETAILS MODAL */}
-      {activeConversation && isMobileDetailsOpen && (
-        <Modal
-          isOpen={isMobileDetailsOpen}
-          onClose={() => setIsMobileDetailsOpen(false)}
-          title="Conversation Details"
-          maxWidth="md"
-        >
-          <ConversationDetailsPanel
-            conversation={activeConversation}
-            messages={activeMessages}
-            onCloseMobile={() => setIsMobileDetailsOpen(false)}
-            theme={theme}
-          />
-        </Modal>
+      {/* 4. ATTACHMENT UPLOAD PREVIEW CHIP */}
+      {selectedFile && (
+        <div className="px-3 sm:px-4 py-2 bg-slate-100 border-t border-slate-200 flex items-center justify-between text-xs text-slate-700 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            {selectedFile.type === 'image' ? (
+              <ImageIcon className="w-4 h-4 text-blue-600 shrink-0" />
+            ) : (
+              <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+            )}
+            <span className="truncate font-semibold text-[11px]">{selectedFile.name}</span>
+            {selectedFile.size && <span className="text-[10px] text-slate-400 shrink-0">• {selectedFile.size}</span>}
+          </div>
+          <button
+            type="button"
+            aria-label="Remove attachment"
+            onClick={() => setSelectedFile(null)}
+            className="text-slate-400 hover:text-slate-600 cursor-pointer p-1 shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       )}
+
+      {/* COMPOSER ERROR ALERT */}
+      {composerError && (
+        <div className="px-4 py-1.5 bg-rose-50 text-rose-700 text-[11px] font-medium border-t border-rose-200 shrink-0">
+          {composerError}
+        </div>
+      )}
+
+      {/* 5. WHATSAPP-STYLE COMPOSER */}
+      <form
+        onSubmit={handleSendMessage}
+        style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
+        className="p-2 sm:p-3 bg-white border-t border-slate-200/90 flex items-end gap-2 shrink-0 z-10"
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={handleFileSelect}
+          accept="image/*,.pdf,.doc,.docx,.zip"
+        />
+
+        <button
+          type="button"
+          aria-label="Attach file"
+          onClick={handleAttachMock}
+          className="h-11 w-11 shrink-0 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition-colors"
+        >
+          <Paperclip className="h-5 w-5 shrink-0 text-slate-600" />
+        </button>
+
+        <div className="flex-1 min-w-0">
+          <textarea
+            ref={textareaRef}
+            rows={1}
+            value={messageInput}
+            onChange={handleTextareaChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Type a message..."
+            className="w-full min-h-[44px] max-h-[120px] px-3.5 py-2.5 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none font-sans"
+          />
+        </div>
+
+        <button
+          type="submit"
+          aria-label="Send message"
+          disabled={!messageInput.trim() && !selectedFile}
+          style={{ backgroundColor: theme.primaryColor }}
+          className="h-11 w-11 shrink-0 rounded-full inline-flex items-center justify-center text-white shadow-xs hover:opacity-90 transition-all disabled:opacity-50 cursor-pointer"
+        >
+          <Send className="h-5 w-5 shrink-0 text-white" />
+        </button>
+      </form>
     </div>
   );
 };

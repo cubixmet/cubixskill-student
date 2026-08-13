@@ -5,6 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Shield, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
+import { getLastActiveCourse } from '../../../utils/last-active-course.utility';
+import { resolveStudentEntry } from '../../../utils/studentEntryResolver';
 
 const loginSchema = z.object({
   email: z
@@ -69,6 +71,12 @@ export const LoginPage: React.FC = () => {
     const fromPath = typeof locationStateFrom === 'string' ? locationStateFrom : locationStateFrom?.pathname;
     if (fromPath && fromPath !== '/login') return fromPath;
     if (intendedRoute && intendedRoute !== '/login') return intendedRoute;
+
+    const lastActive = getLastActiveCourse();
+    if (lastActive && lastActive.academyUuid && lastActive.courseUuid) {
+      return `/student/academies/${lastActive.academyUuid}/courses/${lastActive.courseUuid}/overview`;
+    }
+
     return '/student/academies';
   };
 
@@ -83,9 +91,19 @@ export const LoginPage: React.FC = () => {
     setIsSubmitting(false);
 
     if (success) {
-      const target = getTargetRoute();
+      const authStudent = useAuthStore.getState().student;
+      const studentUuid = authStudent?.uuid || 'std-production-1';
+
+      const locationStateFrom = (location.state as { from?: string | { pathname: string } })?.from;
+      const fromPath = typeof locationStateFrom === 'string' ? locationStateFrom : locationStateFrom?.pathname;
+
+      const targetRoute = resolveStudentEntry({
+        studentUuid,
+        returnTo: fromPath && fromPath !== '/login' ? fromPath : intendedRoute && intendedRoute !== '/login' ? intendedRoute : null,
+      });
+
       setIntendedRoute(null);
-      navigate(target, { replace: true });
+      navigate(targetRoute, { replace: true });
     }
   };
 

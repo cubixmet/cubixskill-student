@@ -17,6 +17,7 @@ import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { Modal } from '../../../components/ui/Modal';
 import { useLearningStore } from '../../../stores/learning.store';
+import { toast } from '../../../stores/toast.store';
 import { useAcademyStore } from '../../../stores/academy.store';
 
 interface AssignmentTask {
@@ -146,8 +147,7 @@ export const AssignmentsPage: React.FC = () => {
             maxMarks: selectedAssignment?.totalMarks || 100,
           });
           setSelectedAssignment(null);
-          setToastMessage('Assignment submitted successfully!');
-          setTimeout(() => setToastMessage(null), 3000);
+          toast.success('Assignment submitted successfully!');
           return 100;
         }
         return prev + 40;
@@ -157,13 +157,6 @@ export const AssignmentsPage: React.FC = () => {
 
   return (
     <div className="space-y-6 font-sans text-xs text-left max-w-4xl mx-auto hide-scrollbar pb-12">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white font-semibold text-xs px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-slate-800 animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
 
       {/* 1. PAGE HEADER & STATS SUMMARY */}
       <Card padding="md" className="bg-white border border-slate-200/80 shadow-2xs space-y-4">

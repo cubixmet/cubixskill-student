@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, Save, CheckCircle2, Lock, Globe, Bell, Eye, Camera, Building, Grid, LogOut, Award, AlertCircle } from 'lucide-react';
+import { User, Mail, Phone, Save, CheckCircle2, CircleAlert, TriangleAlert, Lock, Globe, Bell, Eye, Camera, Building, Grid, LogOut, Award, AlertCircle } from 'lucide-react';
 import { Card } from '../../../components/ui/Card';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
 import { Badge } from '../../../components/ui/Badge';
+import { toast } from '../../../stores/toast.store';
 import { useAuthStore } from '../../../stores/auth.store';
 import { useAcademyStore } from '../../../stores/academy.store';
 import { useCourseStore } from '../../../stores/course.store';
 import { useStudentCertificateStore, type DynamicCertificateTemplateField } from '../../../stores/certificate.store';
+
+import { PageHeader } from '../../../components/ui/PageHeader';
 
 export const ProfileSettingsPage: React.FC = () => {
   const { academyUuid = '550e8400-e29b-41d4-a716-446655440000', courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501' } = useParams<{
@@ -121,7 +124,7 @@ export const ProfileSettingsPage: React.FC = () => {
   return (
     <div className="space-y-6 font-sans text-xs text-left max-w-4xl mx-auto pb-12">
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white font-extrabold text-xs px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-slate-800 animate-bounce">
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white font-semibold text-xs px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-slate-800 animate-bounce">
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           <span>{toastMessage}</span>
         </div>
@@ -129,10 +132,10 @@ export const ProfileSettingsPage: React.FC = () => {
 
       {/* HEADER CARD */}
       <Card padding="md" className="bg-white border border-slate-200/80 shadow-2xs">
-        <h1 className="text-2xl sm:text-[28px] font-bold text-slate-900 tracking-tight leading-tight">Profile &amp; Settings</h1>
-        <p className="text-[13px] sm:text-sm text-slate-500 font-normal mt-1">
-          Manage your personal account information, security, notifications, and context switches.
-        </p>
+        <PageHeader
+          title="Profile & Settings"
+          description="Manage your personal account information, security, notifications, and context switches."
+        />
       </Card>
 
       {/* ACCOUNT CONTEXT SECTION (SWITCH ACADEMY & SWITCH COURSE) */}
@@ -272,18 +275,30 @@ export const ProfileSettingsPage: React.FC = () => {
             onSubmit={(e) => {
               e.preventDefault();
               const newErrors: Record<string, string> = {};
+              let firstInvalidKey: string | null = null;
 
               templateFields.forEach((field: DynamicCertificateTemplateField) => {
                 const val = certFormValues[field.key];
                 if (val === undefined || val === null || String(val).trim() === '') {
                   newErrors[field.key] = `${field.label} is required.`;
+                  if (!firstInvalidKey) {
+                    firstInvalidKey = field.key;
+                  }
                 }
               });
 
               if (Object.keys(newErrors).length > 0) {
                 setCertValidationErrors(newErrors);
-                setToastMessage('Please complete all mandatory certificate fields.');
-                setTimeout(() => setToastMessage(null), 3000);
+
+                if (firstInvalidKey) {
+                  const el = document.getElementById(`field-${firstInvalidKey}`);
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.focus();
+                  }
+                }
+
+                toast.warning('Please complete all mandatory certificate fields.');
                 return;
               }
 
@@ -296,8 +311,7 @@ export const ProfileSettingsPage: React.FC = () => {
               });
 
               setCertValidationErrors({});
-              setToastMessage('Certificate Details saved! Certificate profile is now complete.');
-              setTimeout(() => setToastMessage(null), 3000);
+              toast.success('Certificate Details saved! Certificate profile is now complete.');
             }}
             className="space-y-4"
           >
@@ -314,6 +328,7 @@ export const ProfileSettingsPage: React.FC = () => {
 
                     {field.type === 'textarea' ? (
                       <textarea
+                        id={`field-${field.key}`}
                         rows={3}
                         value={String(val)}
                         onChange={(e) => {
@@ -333,6 +348,7 @@ export const ProfileSettingsPage: React.FC = () => {
                       />
                     ) : field.type === 'select' ? (
                       <select
+                        id={`field-${field.key}`}
                         value={String(val)}
                         onChange={(e) => {
                           setCertFormValues((prev) => ({ ...prev, [field.key]: e.target.value }));
@@ -357,6 +373,7 @@ export const ProfileSettingsPage: React.FC = () => {
                       </select>
                     ) : (
                       <Input
+                        id={`field-${field.key}`}
                         type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
                         value={String(val)}
                         onChange={(e) => {
@@ -378,8 +395,8 @@ export const ProfileSettingsPage: React.FC = () => {
 
                     {field.helpText && !err && <p className="text-[11px] text-slate-500 font-normal">{field.helpText}</p>}
                     {err && (
-                      <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1">
-                        <AlertCircle className="w-3.5 h-3.5" /> {err}
+                      <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1.5">
+                        <CircleAlert className="w-4 h-4 shrink-0" /> <span>{err}</span>
                       </p>
                     )}
                   </div>

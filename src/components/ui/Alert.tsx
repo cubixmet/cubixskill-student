@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
+import { CheckCircle2, CircleAlert, TriangleAlert, Info, X } from 'lucide-react';
 
 export type AlertType = 'success' | 'error' | 'warning' | 'info';
 
@@ -40,10 +40,10 @@ export const Alert: React.FC<AlertProps> = ({
   if (!visible) return null;
 
   const icons = {
-    success: <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />,
-    error: <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />,
-    warning: <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />,
-    info: <Info className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />,
+    success: <CheckCircle2 className="w-[18px] h-[18px] text-emerald-600 shrink-0 mt-0.5" />,
+    error: <CircleAlert className="w-[18px] h-[18px] text-rose-600 shrink-0 mt-0.5" />,
+    warning: <TriangleAlert className="w-[18px] h-[18px] text-amber-600 shrink-0 mt-0.5" />,
+    info: <Info className="w-[18px] h-[18px] text-sky-600 shrink-0 mt-0.5" />,
   };
 
   const styles = {
@@ -55,18 +55,19 @@ export const Alert: React.FC<AlertProps> = ({
 
   return (
     <div
-      className={`p-3.5 md:p-4 rounded-2xl border shadow-2xs flex items-start gap-3 transition-all duration-300 font-sans text-xs md:text-sm animate-in fade-in ${styles[type]} ${className}`}
+      className={`p-3.5 md:p-4 rounded-2xl border shadow-2xs flex items-start gap-2.5 transition-all duration-300 font-sans text-xs md:text-sm animate-in fade-in ${styles[type]} ${className}`}
     >
       {icons[type]}
       <div className="flex-1 min-w-0">
-        {title && <h4 className="font-semibold text-xs md:text-sm leading-tight mb-0.5">{title}</h4>}
-        <div className="font-normal leading-relaxed text-xs opacity-90">{children}</div>
+        {title && <h4 className="font-semibold text-xs md:text-sm leading-tight mb-0.5 break-words">{title}</h4>}
+        <div className="font-normal leading-relaxed text-xs opacity-90 break-words">{children}</div>
       </div>
       {dismissible && (
         <button
           type="button"
           onClick={handleClose}
           className="p-1 rounded-lg hover:bg-black/5 transition-all cursor-pointer text-current opacity-60 hover:opacity-100 shrink-0"
+          aria-label="Dismiss alert"
         >
           <X className="w-4 h-4" />
         </button>
@@ -74,3 +75,4 @@ export const Alert: React.FC<AlertProps> = ({
     </div>
   );
 };
+

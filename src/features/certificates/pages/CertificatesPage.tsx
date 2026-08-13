@@ -17,6 +17,10 @@ import { Modal } from '../../../components/ui/Modal';
 import { useLearningStore } from '../../../stores/learning.store';
 import { useAcademyStore } from '../../../stores/academy.store';
 import { useStudentCertificateStore } from '../../../stores/certificate.store';
+import { toast } from '../../../stores/toast.store';
+
+import { PageHeader } from '../../../components/ui/PageHeader';
+import { EmptyState } from '../../../components/ui/EmptyState';
 
 export const CertificatesPage: React.FC = () => {
   const { academyUuid = '550e8400-e29b-41d4-a716-446655440000', courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501' } = useParams<{
@@ -54,59 +58,46 @@ export const CertificatesPage: React.FC = () => {
       setProfileModalCert({ courseTitle, certUuid });
       return;
     }
-    setToastMessage(`Downloading official high-resolution certificate PDF for ${courseTitle}...`);
-    setTimeout(() => setToastMessage(null), 3000);
+    toast.success(`Downloading official high-resolution certificate PDF for ${courseTitle}...`);
   };
 
   const handleSaveStudentDetails = () => {
     if (profileModalCert) {
-      setToastMessage(`Details saved! Downloading certificate PDF for ${profileModalCert.courseTitle}...`);
+      toast.success(`Details saved! Downloading certificate PDF for ${profileModalCert.courseTitle}...`);
       setProfileModalCert(null);
-      setTimeout(() => setToastMessage(null), 3000);
     }
   };
 
   const handleShareLink = (certUuid: string) => {
     navigator.clipboard?.writeText?.(window.location.origin + `/verify/certificate/${certUuid}`);
-    setToastMessage('Verification link copied to clipboard!');
-    setTimeout(() => setToastMessage(null), 3000);
+    toast.success('Verification link copied to clipboard!');
   };
 
   return (
     <div className="space-y-6 font-sans text-xs text-left max-w-4xl mx-auto hide-scrollbar pb-12">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white font-semibold text-xs px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-slate-800 animate-bounce">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
 
       {/* 1. PAGE HEADER & STATS SUMMARY */}
       <Card padding="md" className="bg-white border border-slate-200/80 shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-[28px] font-bold text-slate-900 tracking-tight leading-tight">Course Certificates</h1>
-            <p className="text-[13px] sm:text-sm text-slate-500 font-normal mt-1">
-              View earned certificates, download high-resolution PDFs, and verify your credentials.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
-              <span className="text-base font-bold text-emerald-700 block">{earnedCount}</span>
-              <span className="text-[9px] font-semibold text-emerald-600 uppercase">Earned</span>
+        <PageHeader
+          title="Course Certificates"
+          description="View earned certificates, download high-resolution PDFs, and verify your credentials."
+          action={
+            <div className="flex items-center gap-2">
+              <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
+                <span className="text-base font-semibold text-emerald-700 block">{earnedCount}</span>
+                <span className="text-[9px] font-semibold text-emerald-600 uppercase">Earned</span>
+              </div>
+              <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-center">
+                <span className="text-base font-semibold text-amber-700 block">{eligibleCount}</span>
+                <span className="text-[9px] font-semibold text-amber-600 uppercase">Eligible</span>
+              </div>
+              <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                <span className="text-base font-semibold text-slate-700 block">{pendingCount}</span>
+                <span className="text-[9px] font-semibold text-slate-500 uppercase">Pending</span>
+              </div>
             </div>
-            <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-center">
-              <span className="text-base font-bold text-amber-700 block">{eligibleCount}</span>
-              <span className="text-[9px] font-semibold text-amber-600 uppercase">Eligible</span>
-            </div>
-            <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-center">
-              <span className="text-base font-bold text-slate-700 block">{pendingCount}</span>
-              <span className="text-[9px] font-semibold text-slate-500 uppercase">Pending</span>
-            </div>
-          </div>
-        </div>
+          }
+        />
       </Card>
 
       {/* 2. TAB CONTROLS */}
@@ -119,8 +110,9 @@ export const CertificatesPage: React.FC = () => {
                 key={tab}
                 type="button"
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${isSelected ? 'theme-soft theme-text theme-border border shadow-2xs' : 'text-slate-600 hover:bg-slate-100'
-                  }`}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                  isSelected ? 'theme-soft theme-text theme-border border shadow-2xs' : 'text-slate-600 hover:bg-slate-100'
+                }`}
               >
                 {tab} Certificates
               </button>
@@ -214,8 +206,7 @@ export const CertificatesPage: React.FC = () => {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      setToastMessage(`Downloading high-resolution PNG image for ${cert.courseTitle}...`);
-                      setTimeout(() => setToastMessage(null), 3000);
+                      toast.success(`Downloading high-resolution PNG image for ${cert.courseTitle}...`);
                     }}
                     className="w-full font-semibold text-slate-700 border-slate-200 hover:bg-slate-50 min-h-[40px]"
                     leftIcon={<Download className="w-3.5 h-3.5" />}

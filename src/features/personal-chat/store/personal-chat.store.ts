@@ -23,6 +23,16 @@ export type RelatedItemType =
   | 'Certificate'
   | 'Technical Support';
 
+export interface ChatContext {
+  courseUuid?: string;
+  courseTitle?: string;
+  moduleTitle?: string;
+  lessonUuid?: string;
+  lessonTitle?: string;
+  assignmentTitle?: string;
+  liveClassTitle?: string;
+}
+
 export interface PersonalConversation {
   uuid: string;
   academyUuid: string;

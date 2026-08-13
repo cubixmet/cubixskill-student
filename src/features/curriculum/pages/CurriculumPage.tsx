@@ -3,208 +3,107 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ListTree,
   PlayCircle,
-  Headphones,
+  Radio,
+  Image as ImageIcon,
   FileText,
   FileCheck,
-  HelpCircle,
-  Radio,
-  Download,
-  Code,
+  ClipboardCheck,
+  Globe,
+  AlignLeft,
   CheckCircle2,
   Lock,
   ChevronDown,
   ChevronUp,
-  Filter,
-  Eye,
   Clock,
+  Download,
+  Sparkles,
+  AlertCircle,
+  ArrowRight,
+  Inbox,
 } from 'lucide-react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
-import { Modal } from '../../../components/ui/Modal';
+import { LessonStatusBadge } from '../../../components/ui/LessonStatusBadge';
 import { useLearningStore } from '../../../stores/learning.store';
 import { useAcademyStore } from '../../../stores/academy.store';
-
-export type ActivityType =
-  | 'video'
-  | 'audio'
-  | 'pdf'
-  | 'assignment'
-  | 'quiz'
-  | 'live'
-  | 'download'
-  | 'project';
-
-export interface CurriculumLessonItem {
-  id: string;
-  title: string;
-  type: ActivityType;
-  metaText: string;
-  status: 'Completed' | 'In Progress' | 'Not Started' | 'Locked' | 'Live Now' | 'Upcoming' | 'Submitted' | 'Passed';
-  progressPercent?: number;
-  isLocked?: boolean;
-  lockRule?: string;
-  actionText: string;
-  targetPath?: string;
-  isCurrent?: boolean;
-}
-
-export interface CurriculumModuleItem {
-  id: string;
-  title: string;
-  lessons: CurriculumLessonItem[];
-}
+import { useCourseStore, type CourseLesson, type LessonType } from '../../../stores/course.store';
+import { useAuthStore } from '../../../stores/auth.store';
+import { useEnrollmentStore } from '../../../stores/enrollment.store';
+import { calculateLessonAccessMap, type LessonAccessState } from '../../learning/utils/unlockResolver';
+import { resolveLessonPreview } from '../../learning/utils/previewResolver';
+import { saveLastActiveCourse } from '../../../utils/last-active-course.utility';
+import { flattenCurriculum } from '../../learning/utils/flattenCurriculum';
+import { getCourseWithResolvedCurriculum } from '../../../mocks/demoCourseCurriculum';
 
 export const CurriculumPage: React.FC = () => {
-  const { academyUuid = '550e8400-e29b-41d4-a716-446655440000', courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501' } = useParams<{
+  const { academyUuid, courseUuid } = useParams<{
     academyUuid: string;
     courseUuid: string;
   }>();
 
   const navigate = useNavigate();
   const completedLessonIds = useLearningStore((state) => state.completedLessonIds);
-  const academies = useAcademyStore((state) => state.academies);
+  const lastAccessedLessonUuid = useLearningStore((state) => state.lastAccessedLessonUuid);
+  const setLastAccessedLessonUuid = useLearningStore((state) => state.setLastAccessedLessonUuid);
 
-  const academy = academies.find((a) => a.uuid === academyUuid);
+  const academies = useAcademyStore((state) => state.academies);
+  const courses = useCourseStore((state) => state.courses);
+  const student = useAuthStore((state) => state.student);
+  const getEnrollment = useEnrollmentStore((state) => state.getEnrollment);
+
+  const academy = useMemo(() => {
+    if (!academyUuid) return undefined;
+    return academies.find((a) => a.uuid === academyUuid);
+  }, [academies, academyUuid]);
+
+  const course = useMemo(() => {
+    if (!academyUuid || !courseUuid) return undefined;
+    const rawCourse = courses.find((c) => c.academyUuid === academyUuid && (c.uuid === courseUuid || c.courseUuid === courseUuid));
+    return getCourseWithResolvedCurriculum(rawCourse, academyUuid, courseUuid);
+  }, [courses, academyUuid, courseUuid]);
+
+  const studentUuid = student?.uuid || 'std-production-1';
+  const enrollment = useMemo(() => {
+    if (!courseUuid) return undefined;
+    return getEnrollment(studentUuid, courseUuid);
+  }, [getEnrollment, studentUuid, courseUuid]);
+
+  const isDemoStudent = enrollment?.accessType === 'demo';
+  const isDemoExpired = isDemoStudent && enrollment?.status === 'expired';
+
   const theme = academy?.theme || { primaryColor: '#2563EB', primaryHover: '#1D4ED8', primarySoft: '#EFF6FF' };
 
-  const baseUrl = `/student/academies/${academyUuid}/courses/${courseUuid}`;
+  // 1. Calculate Unified Access Map safely
+  const accessMap = useMemo(() => {
+    if (!course) return new Map<string, LessonAccessState>();
+    return calculateLessonAccessMap({
+      course,
+      enrollment,
+      completedLessonIds,
+      lastAccessedLessonUuid,
+    });
+  }, [course, enrollment, completedLessonIds, lastAccessedLessonUuid]);
 
-  // Interactive states
+  // 2. Identify Active Module for Auto-Expansion safely
+  const activeModuleId = useMemo(() => {
+    if (!course || !Array.isArray(course.modules) || course.modules.length === 0) return 'mod-1';
+    for (const mod of course.modules) {
+      if (!mod || !Array.isArray(mod.lessons)) continue;
+      const hasActive = mod.lessons.some(
+        (les) => les && (les.id === lastAccessedLessonUuid || accessMap.get(les.id)?.status === 'in_progress' || accessMap.get(les.id)?.status === 'unlocked')
+      );
+      if (hasActive) return mod.id;
+    }
+    return course.modules[0]?.id || 'mod-1';
+  }, [course, lastAccessedLessonUuid, accessMap]);
+
+  // 3. Expansion State (Auto-expand active module by default)
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({
-    'mod-1': true,
-    'mod-2': false,
-    'mod-3': false,
+    [activeModuleId]: true,
   });
-  const [selectedActivityFilter, setSelectedActivityFilter] = useState<'all' | ActivityType>('all');
-  const [previewLesson, setPreviewLesson] = useState<CurriculumLessonItem | null>(null);
 
-  // Curriculum Data Structure
-  const curriculumModules: CurriculumModuleItem[] = [
-    {
-      id: 'mod-1',
-      title: 'Module 1: React 19 Foundations & Compiler Paradigm',
-      lessons: [
-        {
-          id: 'les-1.1',
-          title: '1.1 React 19 Core Architecture & Compiler Transformations',
-          type: 'video',
-          metaText: 'Duration: 14:30',
-          status: completedLessonIds.includes('les-1.1') ? 'Completed' : 'Completed',
-          progressPercent: 100,
-          actionText: 'Watch Again',
-          targetPath: `${baseUrl}/learn`,
-        },
-        {
-          id: 'les-1.2',
-          title: '1.2 Audio Masterclass: React Server Components Mental Model',
-          type: 'audio',
-          metaText: 'Audio • 18:20 mins',
-          status: completedLessonIds.includes('les-1.2') ? 'Completed' : 'In Progress',
-          progressPercent: 65,
-          isCurrent: true,
-          actionText: 'Listen',
-          targetPath: `${baseUrl}/learn`,
-        },
-        {
-          id: 'les-1.3',
-          title: '1.3 Comprehensive Reference Guide & Architecture Slides',
-          type: 'pdf',
-          metaText: 'PDF Guide • 24 Pages',
-          status: 'Completed',
-          progressPercent: 100,
-          actionText: 'Read PDF',
-          targetPath: `${baseUrl}/downloads`,
-        },
-        {
-          id: 'les-1.4',
-          title: '1.4 Knowledge Assessment: React 19 Compiler Objectives',
-          type: 'quiz',
-          metaText: '10 Questions • Passing: 80%',
-          status: 'Passed',
-          progressPercent: 100,
-          actionText: 'View Score',
-          targetPath: `${baseUrl}/quizzes`,
-        },
-      ],
-    },
-    {
-      id: 'mod-2',
-      title: 'Module 2: Enterprise State Management & Persistence',
-      lessons: [
-        {
-          id: 'les-2.1',
-          title: '2.1 Zustand Store Architecture & TypeScript Strictness',
-          type: 'video',
-          metaText: 'Duration: 16:45',
-          status: 'In Progress',
-          progressPercent: 40,
-          actionText: 'Resume Video',
-          targetPath: `${baseUrl}/learn`,
-        },
-        {
-          id: 'les-2.2',
-          title: '2.2 Project Submission: Build a Persistent Local Store',
-          type: 'assignment',
-          metaText: 'Due Aug 12 • Max Marks: 100',
-          status: 'Submitted',
-          actionText: 'View Submission',
-          targetPath: `${baseUrl}/assignments`,
-        },
-        {
-          id: 'les-2.3',
-          title: '2.3 Downloads: Starter Repositories & Zustand Boilerplate',
-          type: 'download',
-          metaText: 'ZIP Archive • 4.8 MB',
-          status: 'Completed',
-          actionText: 'Download',
-          targetPath: `${baseUrl}/downloads`,
-        },
-        {
-          id: 'les-2.4',
-          title: '2.4 Milestone Quiz: State Persistence & Hydration',
-          type: 'quiz',
-          metaText: '15 Questions • Passing: 85%',
-          status: 'Locked',
-          isLocked: true,
-          lockRule: 'Complete Lesson 2.2 Project Submission first',
-          actionText: 'Locked',
-          targetPath: `${baseUrl}/quizzes`,
-        },
-      ],
-    },
-    {
-      id: 'mod-3',
-      title: 'Module 3: Live Masterclasses & Advanced Server Actions',
-      lessons: [
-        {
-          id: 'les-3.1',
-          title: '3.1 Interactive Live Stream: Optimistic Actions Workshop',
-          type: 'live',
-          metaText: 'Live Stream • Today @ 6:00 PM',
-          status: 'Live Now',
-          actionText: 'Join Live',
-          targetPath: `${baseUrl}/live-classes`,
-        },
-        {
-          id: 'les-3.2',
-          title: '3.2 Capstone Coding Exercise: Zero-Latency Form Action Sync',
-          type: 'project',
-          metaText: 'Capstone Submission • Due Aug 20',
-          status: 'Locked',
-          isLocked: true,
-          lockRule: 'Attend 3.1 Live Stream or watch recording to unlock',
-          actionText: 'Locked',
-          targetPath: `${baseUrl}/assignments`,
-        },
-      ],
-    },
-  ];
-
-  // Calculate statistics
-  const allLessons = useMemo(() => curriculumModules.flatMap((m) => m.lessons), []);
-  const completedLessons = useMemo(() => allLessons.filter((l) => l.status === 'Completed' || l.status === 'Passed'), [allLessons]);
-  const overallProgress = Math.round((completedLessons.length / allLessons.length) * 100);
+  const [lockedNotice, setLockedNotice] = useState<string | null>(null);
 
   const toggleModule = (modId: string) => {
     setExpandedModules((prev) => ({
@@ -213,303 +112,320 @@ export const CurriculumPage: React.FC = () => {
     }));
   };
 
-  const getActivityIcon = (type: ActivityType) => {
+  // 4. Progress Summary Calculation safely using flattenCurriculum
+  const flattenedCurriculum = useMemo(() => flattenCurriculum(course), [course]);
+  const isCurriculumEmpty = course && (course.modules?.length === 0 || flattenedCurriculum.length === 0);
+
+  const accessibleLessons = useMemo(() => {
+    return flattenedCurriculum
+      .map(({ lesson }) => lesson)
+      .filter((les) => {
+        const access = accessMap.get(les.id);
+        return access ? access.lockReason !== 'demo_restricted' && access.lockReason !== 'demo_expired' : true;
+      });
+  }, [flattenedCurriculum, accessMap]);
+
+  const totalAccessibleCount = accessibleLessons.length || 1;
+  const completedCount = accessibleLessons.filter((les) => {
+    const access = accessMap.get(les.id);
+    return access?.status === 'completed';
+  }).length;
+
+  const progressPercent = flattenedCurriculum.length === 0 ? 0 : Math.min(100, Math.round((completedCount / totalAccessibleCount) * 100));
+
+  const renderTypeIcon = (type: LessonType) => {
     switch (type) {
       case 'video':
-        return <PlayCircle className="w-5 h-5 shrink-0" style={{ color: theme.primaryColor }} />;
-      case 'audio':
-        return <Headphones className="w-5 h-5 shrink-0 text-indigo-600" />;
-      case 'pdf':
-        return <FileText className="w-5 h-5 shrink-0 text-amber-600" />;
+        return <PlayCircle className="w-4 h-4 text-blue-600 shrink-0" />;
+      case 'stream':
+        return <Radio className="w-4 h-4 text-red-600 shrink-0" />;
+      case 'image':
+        return <ImageIcon className="w-4 h-4 text-indigo-600 shrink-0" />;
+      case 'document':
+        return <FileText className="w-4 h-4 text-amber-600 shrink-0" />;
+      case 'url':
+        return <Globe className="w-4 h-4 text-emerald-600 shrink-0" />;
+      case 'text':
+        return <AlignLeft className="w-4 h-4 text-purple-600 shrink-0" />;
+      case 'test':
+        return <ClipboardCheck className="w-4 h-4 text-orange-600 shrink-0" />;
       case 'assignment':
-        return <FileCheck className="w-5 h-5 shrink-0 text-rose-600" />;
-      case 'quiz':
-        return <HelpCircle className="w-5 h-5 shrink-0 text-purple-600" />;
-      case 'live':
-        return <Radio className="w-5 h-5 shrink-0 text-rose-500 animate-pulse" />;
-      case 'download':
-        return <Download className="w-5 h-5 shrink-0 text-emerald-600" />;
-      case 'project':
-        return <Code className="w-5 h-5 shrink-0 text-cyan-600" />;
+        return <FileCheck className="w-4 h-4 text-teal-600 shrink-0" />;
+      default:
+        return <PlayCircle className="w-4 h-4 text-slate-600 shrink-0" />;
     }
   };
 
-  const getStatusBadge = (lesson: CurriculumLessonItem) => {
-    if (lesson.isLocked) {
-      return (
-        <Badge variant="neutral" size="sm" className="gap-1 bg-slate-100 text-slate-500 whitespace-nowrap h-7 rounded-full px-2.5 text-[11px] font-medium">
-          <Lock className="w-3 h-3" /> Locked
-        </Badge>
-      );
+  const handleLessonClick = (les: CourseLesson) => {
+    if (!academyUuid || !courseUuid) return;
+    const access = accessMap.get(les.id);
+    if (!access || !access.canAccess) {
+      if (access?.lockReason === 'demo_expired') {
+        setLockedNotice('Your demo access period has expired. Upgrade to full course enrollment to continue.');
+      } else if (access?.lockReason === 'demo_restricted') {
+        setLockedNotice('This lesson is available with full course enrollment.');
+      } else {
+        setLockedNotice('Complete the previous required lesson in sequence before unlocking this lesson.');
+      }
+      setTimeout(() => setLockedNotice(null), 4000);
+      return;
     }
-    switch (lesson.status) {
-      case 'Completed':
-      case 'Passed':
-        return (
-          <Badge variant="success" size="sm" className="gap-1 whitespace-nowrap h-7 rounded-full px-2.5 text-[11px] font-medium">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Completed
-          </Badge>
-        );
-      case 'In Progress':
-        return (
-          <Badge variant="warning" size="sm" className="gap-1 whitespace-nowrap h-7 rounded-full px-2.5 text-[11px] font-medium">
-            <Clock className="w-3 h-3" /> {lesson.progressPercent}%
-          </Badge>
-        );
-      case 'Live Now':
-        return (
-          <Badge variant="error" size="sm" className="gap-1 animate-pulse whitespace-nowrap h-7 rounded-full px-2.5 text-[11px] font-medium">
-            <Radio className="w-3 h-3" /> Live
-          </Badge>
-        );
-      case 'Submitted':
-        return (
-          <Badge variant="info" size="sm" className="whitespace-nowrap h-7 rounded-full px-2.5 text-[11px] font-medium">
-            Submitted
-          </Badge>
-        );
-      default:
-        return <Badge variant="neutral" size="sm" className="whitespace-nowrap h-7 rounded-full px-2.5 text-[11px] font-medium">Not Started</Badge>;
-    }
+
+    setLastAccessedLessonUuid(les.id);
+    saveLastActiveCourse(academyUuid, courseUuid);
+    navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/learn/${les.id}`);
   };
+
+  if (!academyUuid || !courseUuid || !course) {
+    return (
+      <div className="min-h-[300px] flex flex-col items-center justify-center p-6 text-center space-y-3 font-sans text-xs bg-white rounded-3xl border border-slate-200 shadow-2xs">
+        <AlertCircle className="w-8 h-8 text-amber-500" />
+        <h2 className="text-base font-bold text-slate-900">Curriculum Content Unavailable</h2>
+        <p className="text-slate-500 font-mono text-[11px]">Requested Course: {courseUuid || 'None'}</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4 font-sans text-xs text-left max-w-5xl mx-auto hide-scrollbar pb-[calc(88px+env(safe-area-inset-bottom))] md:pb-12">
-      {/* 1. COMPACT PAGE HEADER */}
-      <Card padding="md" className="bg-white border border-slate-200/80 shadow-2xs space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-[22px] font-semibold text-slate-900 tracking-tight leading-tight">
-              Course Curriculum
-            </h1>
-            <span className="text-xs text-slate-500 font-normal block mt-0.5">
-              {completedLessons.length} of {allLessons.length} Activities Complete ({overallProgress}%)
-            </span>
+    <div className="space-y-4 sm:space-y-5 font-sans text-xs text-left max-w-5xl mx-auto hide-scrollbar pb-[calc(88px+env(safe-area-inset-bottom))] md:pb-12">
+      {/* DEMO EXPIRED TOP ALERT */}
+      {isDemoExpired && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Sparkles className="w-5 h-5 text-amber-600 shrink-0 fill-amber-500" />
+            <div className="min-w-0">
+              <span className="font-bold text-xs block">Demo Access Expired</span>
+              <span className="text-[11px] text-amber-800 font-medium">
+                Your 5-day demo period has ended. Upgrade to full course access to unlock all lessons.
+              </span>
+            </div>
           </div>
+          <Button
+            size="sm"
+            onClick={() => navigate(`/${academyUuid}/register?course=${courseUuid}&intent=full`)}
+            rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+            className="bg-amber-600 hover:bg-amber-700 text-white font-semibold shrink-0 cursor-pointer"
+          >
+            Enroll Full Course
+          </Button>
+        </div>
+      )}
 
-          <Badge variant="info" size="md" className="font-semibold h-[28px] rounded-full px-3">
-            {overallProgress}% Complete
+      {/* LOCKED NOTICE TOAST */}
+      {lockedNotice && (
+        <div className="p-3.5 rounded-2xl bg-slate-900 text-white flex items-start gap-2.5 shadow-lg border border-slate-800 animate-in fade-in slide-in-from-top duration-200">
+          <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <span className="text-xs font-semibold text-slate-100 flex-1 leading-snug">{lockedNotice}</span>
+        </div>
+      )}
+
+      {/* 1. PROGRESS HEADER SUMMARY CARD */}
+      <Card padding="md" className="bg-white border border-slate-200/80 rounded-2xl sm:rounded-3xl shadow-2xs space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Course Roadmap</span>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">{course.title}</h1>
+          </div>
+          <Badge variant={isDemoStudent ? 'warning' : 'success'} size="sm" className="font-bold text-[11px] rounded-lg self-start sm:self-center">
+            {isDemoStudent ? 'Demo Access Scope' : 'Full Lifetime Access'}
           </Badge>
         </div>
 
-        {/* PROGRESS METRIC BAR */}
-        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+        {/* ACCESSIBLE PROGRESS BAR */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-900">
+            <span>Overall Course Progress</span>
+            <span style={{ color: theme.primaryColor }}>{progressPercent}%</span>
+          </div>
           <div
-            className="h-full rounded-full transition-all duration-500 theme-bg"
-            style={{ width: `${overallProgress}%` }}
-          />
+            role="progressbar"
+            aria-valuenow={progressPercent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            className="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden"
+          >
+            <div
+              className="h-full rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${progressPercent}%`, backgroundColor: theme.primaryColor }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+            <span>{completedCount} of {totalAccessibleCount} lessons completed</span>
+            <span>{Math.max(0, totalAccessibleCount - completedCount)} remaining</span>
+          </div>
         </div>
       </Card>
 
-      {/* 2. ACTIVITY TYPE FILTER CHIPS */}
-      <Card padding="md" className="bg-white border border-slate-200/80 shadow-2xs">
-        <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar">
-          <span className="text-xs text-slate-400 font-medium mr-1 flex items-center gap-1 shrink-0">
-            <Filter className="w-3.5 h-3.5" /> Filter:
-          </span>
-          {(
-            [
-              { id: 'all', label: 'All' },
-              { id: 'video', label: 'Videos' },
-              { id: 'audio', label: 'Audio' },
-              { id: 'pdf', label: 'PDFs' },
-              { id: 'assignment', label: 'Assignments' },
-              { id: 'quiz', label: 'Quizzes' },
-              { id: 'live', label: 'Live' },
-              { id: 'download', label: 'Downloads' },
-            ] as const
-          ).map((filter) => {
-            const isSelected = selectedActivityFilter === filter.id;
+      {/* 2. MODULE ACCORDIONS & VISUAL LESSON CARDS OR EMPTY STATE */}
+      {isCurriculumEmpty ? (
+        <Card padding="md" className="bg-white border border-slate-200/80 rounded-2xl sm:rounded-3xl shadow-2xs text-center p-8 space-y-3">
+          <Inbox className="w-10 h-10 text-slate-400 mx-auto" />
+          <h2 className="text-base font-bold text-slate-900">Course content is not available yet</h2>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            Modules and lessons for this course are currently being published by the academy. Please check back soon.
+          </p>
+        </Card>
+      ) : (
+        <div className="space-y-3.5">
+          {course.modules?.map((mod, modIdx) => {
+            if (!mod) return null;
+            const isOpen = expandedModules[mod.id] ?? false;
+            const modLessons = Array.isArray(mod.lessons) ? mod.lessons.filter(Boolean) : [];
+            const modCompletedCount = modLessons.filter((les) => accessMap.get(les.id)?.status === 'completed').length;
+            const modTotal = modLessons.length || 1;
+            const modProgress = Math.round((modCompletedCount / modTotal) * 100);
+
             return (
-              <button
-                key={filter.id}
-                type="button"
-                onClick={() => setSelectedActivityFilter(filter.id as any)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                  isSelected ? 'theme-soft theme-text theme-border border shadow-2xs' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                {filter.label}
-              </button>
+              <div key={mod.id || modIdx} className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-2xs">
+                {/* MODULE HEADER ACCORDION BUTTON */}
+                <button
+                  type="button"
+                  aria-expanded={isOpen}
+                  onClick={() => toggleModule(mod.id)}
+                  className="w-full px-4 py-3.5 flex items-center justify-between gap-3 bg-slate-50/90 hover:bg-slate-100/90 transition-all border-b border-slate-200/80 text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-9 h-9 rounded-xl theme-soft flex items-center justify-center shrink-0 border border-slate-200/60">
+                      <ListTree className="w-4 h-4" style={{ color: theme.primaryColor }} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="font-bold text-xs sm:text-sm text-slate-900 tracking-tight leading-snug break-words">
+                        {mod.title || `Module ${modIdx + 1}`}
+                      </h2>
+                      <span className="text-[11px] font-semibold text-slate-500 block mt-0.5">
+                        {modCompletedCount} of {modLessons.length} Completed • {modProgress}% Progress
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="w-8 h-8 flex items-center justify-center shrink-0 text-slate-400">
+                    {isOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                  </div>
+                </button>
+
+                {/* MODULE LESSON ROWS */}
+                {isOpen && (
+                  <div className="divide-y divide-slate-100">
+                    {modLessons.map((les, lesIdx) => {
+                      if (!les) return null;
+                      const access = accessMap.get(les.id);
+                      const canAccess = access?.canAccess ?? true;
+                      const status = access?.status || 'unlocked';
+                      const isLocked = !canAccess;
+
+                      const preview = resolveLessonPreview(les);
+
+                      return (
+                        <div
+                          key={les.id || lesIdx}
+                          onClick={() => handleLessonClick(les)}
+                          className={`p-3.5 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3.5 transition-colors cursor-pointer ${
+                            status === 'in_progress'
+                              ? 'bg-blue-50/40 border-l-4 border-l-blue-600'
+                              : isLocked
+                              ? 'bg-slate-50/50 hover:bg-slate-50'
+                              : 'hover:bg-slate-50/80 bg-white'
+                          }`}
+                        >
+                          {/* THUMBNAIL PREVIEW & TITLE DETAILS */}
+                          <div className="flex items-start gap-3 min-w-0 flex-1">
+                            {/* LIGHTWEIGHT THUMBNAIL PREVIEW */}
+                            <div className="w-20 sm:w-24 aspect-video rounded-xl overflow-hidden bg-slate-950 shrink-0 border border-slate-200 relative group">
+                              <img
+                                src={preview.thumbnailUrl}
+                                alt=""
+                                loading="lazy"
+                                className={`w-full h-full object-cover transition-opacity ${
+                                  isLocked ? 'opacity-40 grayscale' : 'opacity-90 group-hover:opacity-100'
+                                }`}
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center bg-slate-950/20">
+                                {isLocked ? (
+                                  <Lock className="w-4 h-4 text-white drop-shadow-xs" />
+                                ) : (
+                                  renderTypeIcon(preview.type)
+                                )}
+                              </div>
+                            </div>
+
+                            {/* LESSON META INFO */}
+                            <div className="space-y-1 min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                                  Lesson {modIdx + 1}.{lesIdx + 1}
+                                </span>
+                                {status === 'in_progress' && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-blue-100 text-blue-800">
+                                    Current Unit
+                                  </span>
+                                )}
+                              </div>
+
+                              <h3 className="font-bold text-xs sm:text-sm text-slate-900 leading-snug break-words">
+                                {les.title || 'Untitled Lesson'}
+                              </h3>
+
+                              <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 font-medium pt-0.5">
+                                <span className="inline-flex items-center gap-1 font-semibold text-slate-700">
+                                  {renderTypeIcon(preview.type)}
+                                  <span>{preview.label}</span>
+                                </span>
+                                {les.duration && (
+                                  <>
+                                    <span className="text-slate-300">•</span>
+                                    <span className="inline-flex items-center gap-1">
+                                      <Clock className="w-3 h-3 text-slate-400" />
+                                      <span>{les.duration}</span>
+                                    </span>
+                                  </>
+                                )}
+                                {preview.allowDownload && (
+                                  <>
+                                    <span className="text-slate-300">•</span>
+                                    <span className="inline-flex items-center gap-1 text-blue-600 font-semibold">
+                                      <Download className="w-3 h-3" />
+                                      <span>Asset</span>
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* STATUS BADGE & ACTION BUTTON */}
+                          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                            {status === 'completed' ? (
+                              <LessonStatusBadge status="completed" />
+                            ) : status === 'in_progress' ? (
+                              <Button
+                                size="sm"
+                                className="w-full sm:w-auto font-semibold px-4 min-h-[40px] bg-blue-600 text-white rounded-xl shadow-xs cursor-pointer"
+                                leftIcon={<PlayCircle className="w-4 h-4 text-white shrink-0" />}
+                              >
+                                Continue
+                              </Button>
+                            ) : isLocked ? (
+                              <LessonStatusBadge status="locked" />
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-full sm:w-auto font-semibold px-4 min-h-[40px] border-slate-200 text-slate-800 hover:bg-slate-100 rounded-xl cursor-pointer"
+                              >
+                                Start Unit
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
-      </Card>
-
-      {/* 3. MODULE CARDS & COMPACT LESSON CARDS */}
-      <div className="space-y-3.5">
-        {curriculumModules.map((mod) => {
-          const isExpanded = expandedModules[mod.id] ?? false;
-
-          const filteredLessons = mod.lessons.filter((les) => {
-            if (selectedActivityFilter === 'all') return true;
-            return les.type === selectedActivityFilter;
-          });
-
-          if (filteredLessons.length === 0 && selectedActivityFilter !== 'all') return null;
-
-          const completedCount = mod.lessons.filter((l) => l.status === 'Completed' || l.status === 'Passed').length;
-          const moduleProgress = Math.round((completedCount / mod.lessons.length) * 100);
-
-          return (
-            <div key={mod.id} className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden mb-3.5 shadow-2xs">
-              {/* MODULE HEADER GRID: 40px icon | 1fr title & progress | 32px chevron */}
-              <button
-                type="button"
-                onClick={() => toggleModule(mod.id)}
-                className="w-full px-4 py-3.5 grid grid-cols-[40px_minmax(0,1fr)_32px] items-center gap-3 bg-slate-50/90 hover:bg-slate-100/90 transition-all border-b border-slate-200/80 text-left cursor-pointer"
-              >
-                <div className="w-10 h-10 rounded-[10px] theme-soft flex items-center justify-center shrink-0">
-                  <ListTree className="w-4 h-4" style={{ color: theme.primaryColor }} />
-                </div>
-
-                <div className="min-w-0">
-                  <h3 className="font-semibold text-[15px] text-slate-900 leading-[1.3] line-clamp-2">{mod.title}</h3>
-                  <span className="text-xs font-normal text-[#64748B] block mt-0.5">
-                    {completedCount} of {mod.lessons.length} Activities Complete • {moduleProgress}% Progress
-                  </span>
-                </div>
-
-                <div className="w-8 h-8 flex items-center justify-center shrink-0 ml-auto">
-                  {isExpanded ? (
-                    <ChevronUp className="w-5 h-5 text-slate-500" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5 text-slate-400" />
-                  )}
-                </div>
-              </button>
-
-              {/* LESSON SECTIONS INSIDE MODULE */}
-              {isExpanded && (
-                <div className="divide-y divide-slate-200/80">
-                  {filteredLessons.map((les) => (
-                    <div
-                      key={les.id}
-                      className={`p-4 bg-white transition-all ${
-                        les.isCurrent
-                          ? 'border-l-[3px] theme-soft'
-                          : les.isLocked
-                          ? 'bg-slate-50/40'
-                          : 'hover:bg-slate-50/60'
-                      }`}
-                      style={{
-                        borderLeftColor: les.isCurrent ? theme.primaryColor : undefined,
-                      }}
-                    >
-                      {/* LESSON HEADER GRID: 48px Icon | 1fr Title & Metadata */}
-                      <div className="grid grid-cols-[48px_minmax(0,1fr)] gap-3.5 items-start">
-                        <div className="w-12 h-12 rounded-xl bg-slate-100/80 border border-slate-200/60 flex items-center justify-center shrink-0 flex-none">
-                          {getActivityIcon(les.type)}
-                        </div>
-
-                        <div className="min-w-0">
-                          <h4 className="font-semibold text-[15px] text-slate-900 leading-[1.35] break-words overflow-wrap-anywhere">
-                            {les.title}
-                          </h4>
-                          <span className="text-xs md:text-[13px] font-normal text-[#64748B] block mt-1">
-                            {les.metaText}
-                          </span>
-                          {les.lockRule && (
-                            <span className="text-xs text-amber-600 font-normal block mt-1">
-                              Complete previous lesson to unlock.
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* COMPACT & BALANCED ACTION ROW: Status Badge | Eye Button (36x36) | Primary Action Button (36px height) */}
-                      <div className="flex items-center justify-between gap-2 w-full border-t border-slate-200/80 pt-2.5 mt-2.5">
-                        <div className="flex items-center shrink-0">
-                          {getStatusBadge(les)}
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => setPreviewLesson(les)}
-                            className="w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-[var(--theme-primary-soft,#EFF6FF)] flex items-center justify-center transition-all cursor-pointer shrink-0"
-                            aria-label="Preview Activity"
-                            title="Preview Activity"
-                          >
-                            <Eye className="w-4 h-4 text-slate-500" />
-                          </button>
-
-                          <Button
-                            size="sm"
-                            disabled={les.isLocked}
-                            onClick={() => les.targetPath && navigate(les.targetPath)}
-                            className={`h-9 px-3 rounded-lg text-xs font-semibold cursor-pointer truncate ${
-                              !les.isLocked ? 'theme-bg' : ''
-                            }`}
-                          >
-                            {les.actionText}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* 4. LESSON PREVIEW & UNLOCK RULE MODAL */}
-      <Modal
-        isOpen={Boolean(previewLesson)}
-        onClose={() => setPreviewLesson(null)}
-        title={previewLesson?.title || 'Activity Details'}
-        subtitle={previewLesson?.metaText}
-        maxWidth="md"
-      >
-        {previewLesson && (
-          <div className="space-y-4 font-sans text-xs text-left">
-            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-              <div className="flex items-center gap-2">
-                {getActivityIcon(previewLesson.type)}
-                <span className="font-semibold text-slate-900 uppercase tracking-wider text-[11px]">{previewLesson.type} Activity</span>
-              </div>
-              {getStatusBadge(previewLesson)}
-            </div>
-
-            {previewLesson.isLocked && previewLesson.lockRule && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1 text-amber-900">
-                <div className="flex items-center gap-1.5 font-semibold text-amber-800">
-                  <Lock className="w-4 h-4" />
-                  <span>Lock Requirement</span>
-                </div>
-                <p className="text-xs font-normal">{previewLesson.lockRule}</p>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <span className="font-semibold text-slate-900 block">Activity Overview</span>
-              <p className="text-slate-600 font-normal leading-relaxed">
-                This learning module covers essential concepts with structured exercises, instant score tracking, and automated progress recording toward your course certificate.
-              </p>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-              <Button variant="outline" size="sm" onClick={() => setPreviewLesson(null)} className="font-semibold">
-                Close
-              </Button>
-              {!previewLesson.isLocked && previewLesson.targetPath && (
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setPreviewLesson(null);
-                    navigate(previewLesson.targetPath!);
-                  }}
-                  className="font-semibold theme-bg"
-                >
-                  Open Activity
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
+      )}
     </div>
   );
 };

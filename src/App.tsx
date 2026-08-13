@@ -3,6 +3,8 @@ import { RouterProvider } from 'react-router-dom';
 import { router } from './router';
 import { useAuthStore } from './features/auth/store/auth.store';
 
+import { ToastContainer } from './components/ui/Toast';
+
 export const App: React.FC = () => {
   useEffect(() => {
     // 1. Restore authenticated session on app start
@@ -22,7 +24,12 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <RouterProvider router={router} />
+      <ToastContainer />
+    </>
+  );
 };
 
 export default App;

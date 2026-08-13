@@ -33,12 +33,15 @@ export interface CertificateItem {
 interface LearningStoreState {
   completedLessonIds: string[];
   watchPercentages: Record<string, number>;
+  lastAccessedLessonUuid?: string;
+  lastCompletedLessonUuid?: string;
   submissions: AssignmentSubmission[];
   quizAttempts: QuizAttempt[];
   certificates: CertificateItem[];
 
   markLessonComplete: (lessonId: string) => void;
   updateWatchPercentage: (lessonId: string, percent: number) => void;
+  setLastAccessedLessonUuid: (lessonId: string) => void;
   addAssignmentSubmission: (submission: Omit<AssignmentSubmission, 'id' | 'submittedAt' | 'status'>) => void;
   addQuizAttempt: (attempt: Omit<QuizAttempt, 'id' | 'attemptedAt'>) => void;
 }
@@ -46,10 +49,12 @@ interface LearningStoreState {
 export const useLearningStore = create<LearningStoreState>()(
   persist(
     (set) => ({
-      completedLessonIds: ['les-1.1', 'les-1.2', 'les-2.1', 'les-2.2', 'les-3.1'],
+      completedLessonIds: ['les-1.1', 'les-1.2', 'les-1.3', 'les-2.1', 'mock-react19-introduction'],
       watchPercentages: {
-        'les-3.2': 80,
+        'les-1.4': 65,
+        'mock-react19-compiler': 45,
       },
+      lastAccessedLessonUuid: 'mock-react19-compiler',
 
       submissions: [
         {
@@ -87,17 +92,25 @@ export const useLearningStore = create<LearningStoreState>()(
       ],
 
       markLessonComplete: (lessonId) => {
-        set((state) => ({
-          completedLessonIds: state.completedLessonIds.includes(lessonId)
-            ? state.completedLessonIds
-            : [...state.completedLessonIds, lessonId],
-        }));
+        set((state) => {
+          if (state.completedLessonIds.includes(lessonId)) {
+            return state;
+          }
+          return {
+            completedLessonIds: [...state.completedLessonIds, lessonId],
+            lastCompletedLessonUuid: lessonId,
+          };
+        });
       },
 
       updateWatchPercentage: (lessonId, percent) => {
         set((state) => ({
           watchPercentages: { ...state.watchPercentages, [lessonId]: percent },
         }));
+      },
+
+      setLastAccessedLessonUuid: (lessonId) => {
+        set({ lastAccessedLessonUuid: lessonId });
       },
 
       addAssignmentSubmission: (sub) => {

@@ -1,0 +1,248 @@
+import React, { useState } from 'react';
+import {
+  CheckCircle2,
+  PlayCircle,
+  Circle,
+  Lock,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  RotateCcw,
+  ListTree,
+  X,
+  Radio,
+  Image as ImageIcon,
+  FileText,
+  Globe,
+  AlignLeft,
+  ClipboardCheck,
+  FileCheck,
+} from 'lucide-react';
+import type { CourseModule, CourseLesson, LessonType } from '../../../stores/course.store';
+import type { LessonAccessState } from '../utils/unlockResolver';
+import { resolveLessonType } from '../utils/mediaResolver';
+
+interface Props {
+  modules: CourseModule[];
+  activeLessonId: string;
+  accessMap: Map<string, LessonAccessState>;
+  onSelectLesson: (lessonId: string) => void;
+  onResetProgress?: () => void;
+  isMobileDrawer?: boolean;
+  onCloseDrawer?: () => void;
+}
+
+export const LessonSidebar: React.FC<Props> = ({
+  modules,
+  activeLessonId,
+  accessMap,
+  onSelectLesson,
+  onResetProgress,
+  isMobileDrawer = false,
+  onCloseDrawer,
+}) => {
+  // Find which module contains active lesson
+  const initialActiveModId = (() => {
+    for (const mod of modules) {
+      if (mod.lessons.some((l) => l.id === activeLessonId)) {
+        return mod.id;
+      }
+    }
+    return modules[0]?.id || '';
+  })();
+
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({
+    [initialActiveModId]: true,
+  });
+
+  const toggleModule = (modId: string) => {
+    setExpandedModules((prev) => ({
+      ...prev,
+      [modId]: !prev[modId],
+    }));
+  };
+
+  // Progress Calculation
+  const allLessons = modules.flatMap((m) => m.lessons);
+  const totalCount = allLessons.length || 1;
+  const completedCount = allLessons.filter((l) => accessMap.get(l.id)?.status === 'completed').length;
+  const progressPercent = Math.round((completedCount / totalCount) * 100);
+
+  const renderTypeIcon = (type: LessonType) => {
+    switch (type) {
+      case 'video':
+        return <PlayCircle className="w-3.5 h-3.5 text-blue-600 shrink-0" />;
+      case 'stream':
+        return <Radio className="w-3.5 h-3.5 text-red-600 shrink-0" />;
+      case 'image':
+        return <ImageIcon className="w-3.5 h-3.5 text-indigo-600 shrink-0" />;
+      case 'document':
+        return <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />;
+      case 'url':
+        return <Globe className="w-3.5 h-3.5 text-emerald-600 shrink-0" />;
+      case 'text':
+        return <AlignLeft className="w-3.5 h-3.5 text-purple-600 shrink-0" />;
+      case 'test':
+        return <ClipboardCheck className="w-3.5 h-3.5 text-orange-600 shrink-0" />;
+      case 'assignment':
+        return <FileCheck className="w-3.5 h-3.5 text-teal-600 shrink-0" />;
+      default:
+        return <PlayCircle className="w-3.5 h-3.5 text-slate-500 shrink-0" />;
+    }
+  };
+
+  return (
+    <div className="bg-white border border-slate-200/80 rounded-2xl sm:rounded-3xl p-4 shadow-2xs space-y-4 font-sans text-xs w-full">
+      {/* SIDEBAR HEADER */}
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <ListTree className="w-4 h-4 text-blue-600 shrink-0" />
+          <span className="font-semibold text-xs text-slate-900 tracking-tight truncate">
+            Course Curriculum
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {onResetProgress && (
+            <button
+              type="button"
+              onClick={onResetProgress}
+              title="Reset Demo Progress"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {isMobileDrawer && onCloseDrawer && (
+            <button
+              type="button"
+              onClick={onCloseDrawer}
+              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* OVERALL PROGRESS SUMMARY */}
+      <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200/60">
+        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+          <span>Overall Course Progress</span>
+          <span className="text-blue-600 font-bold">{progressPercent}%</span>
+        </div>
+        <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
+          <div
+            className="h-full bg-blue-600 rounded-full transition-all duration-300"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+        <span className="text-[10px] text-slate-500 font-medium block text-right">
+          {completedCount} of {totalCount} units completed
+        </span>
+      </div>
+
+      {/* MODULE ACCORDION LIST */}
+      <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-1 hide-scrollbar">
+        {modules.map((mod, modIdx) => {
+          const isOpen = expandedModules[mod.id] ?? false;
+          const modCompleted = mod.lessons.filter((l) => accessMap.get(l.id)?.status === 'completed').length;
+          const modTotal = mod.lessons.length || 1;
+
+          return (
+            <div key={mod.id} className="border border-slate-200/80 rounded-xl overflow-hidden bg-slate-50/50">
+              <button
+                type="button"
+                onClick={() => toggleModule(mod.id)}
+                className="w-full p-2.5 flex items-center justify-between gap-2 bg-slate-100/70 hover:bg-slate-100 transition-colors text-left cursor-pointer"
+              >
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <span className="font-semibold text-xs text-slate-900 truncate block">
+                    {mod.title}
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-normal block">
+                    {modCompleted}/{mod.lessons.length} Completed • {mod.duration}
+                  </span>
+                </div>
+                <div className="text-slate-400 shrink-0">
+                  {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </div>
+              </button>
+
+              {isOpen && (
+                <div className="divide-y divide-slate-100 bg-white">
+                  {mod.lessons.map((les, lesIdx) => {
+                    const access = accessMap.get(les.id);
+                    const isSelected = les.id === activeLessonId;
+                    const status = access?.status || 'unlocked';
+                    const canAccess = access?.canAccess ?? true;
+                    const type = resolveLessonType(les);
+
+                    return (
+                      <button
+                        key={les.id}
+                        type="button"
+                        onClick={() => {
+                          if (canAccess) {
+                            onSelectLesson(les.id);
+                            if (isMobileDrawer && onCloseDrawer) onCloseDrawer();
+                          }
+                        }}
+                        disabled={!canAccess}
+                        className={`w-full p-2.5 flex items-start gap-2.5 transition-colors text-left cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-50/80 border-l-4 border-l-blue-600 text-blue-950 font-semibold'
+                            : status === 'completed'
+                            ? 'hover:bg-slate-50 text-slate-800'
+                            : canAccess
+                            ? 'hover:bg-slate-50 text-slate-800'
+                            : 'opacity-50 bg-slate-50/50 cursor-not-allowed text-slate-400'
+                        }`}
+                      >
+                        {/* STATUS ICON */}
+                        <div className="mt-0.5 shrink-0">
+                          {status === 'completed' ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          ) : isSelected ? (
+                            <PlayCircle className="w-4 h-4 text-blue-600 animate-pulse" />
+                          ) : canAccess ? (
+                            <Circle className="w-4 h-4 text-slate-400" />
+                          ) : (
+                            <Lock className="w-4 h-4 text-slate-400" />
+                          )}
+                        </div>
+
+                        {/* LESSON DETAILS */}
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <span className={`text-xs block leading-snug break-words ${isSelected ? 'font-semibold text-blue-950' : 'font-medium text-slate-800'}`}>
+                            {les.title}
+                          </span>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-500 font-normal">
+                            <span className="inline-flex items-center gap-1 capitalize">
+                              {renderTypeIcon(type)}
+                              <span>{type}</span>
+                            </span>
+                            {les.duration && (
+                              <>
+                                <span>•</span>
+                                <span className="inline-flex items-center gap-0.5">
+                                  <Clock className="w-3 h-3 text-slate-400" />
+                                  <span>{les.duration}</span>
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};

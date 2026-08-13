@@ -2,6 +2,7 @@ export interface AuthStudent {
   uuid: string;
   id?: string;
   fullName: string;
+  name?: string;
   email: string;
   phone?: string;
   avatar?: string;
@@ -18,6 +19,7 @@ export interface LoginCredentials {
   email: string;
   password?: string;
   rememberMe?: boolean;
+  academyUuid?: string;
 }
 
 export interface SessionResponse {
