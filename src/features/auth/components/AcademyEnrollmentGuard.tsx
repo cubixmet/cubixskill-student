@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, Navigate, Outlet } from 'react-router-dom';
 import { useAcademyStore } from '../../../stores/academy.store';
 import { useAuthStore } from '../../../stores/auth.store';
@@ -11,26 +11,33 @@ interface Props {
 export const AcademyEnrollmentGuard: React.FC<Props> = ({ children }) => {
   const { academyUuid } = useParams<{ academyUuid: string }>();
   const loadAcademyThemeByUuid = useAcademyStore((state) => state.loadAcademyThemeByUuid);
-  const activeAcademy = useAcademyStore((state) => state.activeAcademy);
-  const isLoading = useAuthStore((state) => state.isLoading);
+  const fetchAcademies = useAcademyStore((state) => state.fetchAcademies);
+  const isAuthLoading = useAuthStore((state) => state.isLoading);
+  const isAcademyLoading = useAcademyStore((state) => state.isLoading);
+  const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
 
   useEffect(() => {
-    if (academyUuid) {
-      loadAcademyThemeByUuid(academyUuid);
+    let isMounted = true;
+    async function init() {
+      if (academyUuid) {
+        await fetchAcademies();
+        if (isMounted) {
+          loadAcademyThemeByUuid(academyUuid);
+          setHasAttemptedFetch(true);
+        }
+      } else {
+        if (isMounted) setHasAttemptedFetch(true);
+      }
     }
-  }, [academyUuid, loadAcademyThemeByUuid]);
+    init();
+    return () => { isMounted = false; };
+  }, [academyUuid, fetchAcademies, loadAcademyThemeByUuid]);
 
-  if (isLoading) {
+  if (isAuthLoading || !hasAttemptedFetch || isAcademyLoading) {
     return <AuthSkeleton />;
   }
 
   if (!academyUuid) {
-    return <Navigate to="/404" replace />;
-  }
-
-  const academy = loadAcademyThemeByUuid(academyUuid);
-
-  if (!academy && !activeAcademy) {
     return <Navigate to="/404" replace />;
   }
 

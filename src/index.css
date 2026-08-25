@@ -56,28 +56,85 @@
   height: 0 !important;
 }
 
+/* Autofill Dark Mode Fix */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #FFFFFF inset !important;
+  -webkit-text-fill-color: #0F172A !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #0F172A inset !important;
+  -webkit-text-fill-color: #F8FAFC !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+:root {
+  --brand-primary: var(--theme-primary, #2563EB);
+  --brand-primary-hover: var(--theme-primary-hover, #1D4ED8);
+  --brand-primary-soft: var(--theme-primary-soft, #EFF6FF);
+  --brand-primary-foreground: var(--theme-primary-foreground, #FFFFFF);
+
+  --brand-secondary: var(--theme-secondary, #1E293B);
+  --brand-secondary-hover: var(--theme-secondary-hover, #334155);
+  --brand-secondary-foreground: var(--theme-secondary-foreground, #F8FAFC);
+
+  --brand-accent: var(--theme-accent, #3B82F6);
+
+  --page-background: #F8FAFC;
+  --surface: #FFFFFF;
+  --surface-secondary: #F8FAFC;
+  --surface-hover: #F1F5F9;
+
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+
+  --border: #E2E8F0;
+}
+
+.dark {
+  --page-background: #0B0F19;
+  --surface: #111827;
+  --surface-secondary: #172033;
+  --surface-hover: #1E293B;
+
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #64748B;
+
+  --border: #263244;
+}
+
 /* Theme utility classes */
 .theme-text {
-  color: var(--theme-primary, #2563EB);
+  color: var(--brand-primary, #2563EB);
 }
 
 .theme-bg {
-  background-color: var(--theme-primary, #2563EB);
+  background-color: var(--brand-primary, #2563EB);
+  color: var(--brand-primary-foreground, #FFFFFF);
 }
 
 .theme-bg:hover {
-  background-color: var(--theme-primary-hover, #1D4ED8);
+  background-color: var(--brand-primary-hover, #1D4ED8);
 }
 
 .theme-soft {
-  background-color: var(--theme-primary-soft, #EFF6FF);
+  background-color: var(--brand-primary-soft, #EFF6FF);
 }
 
 .theme-border {
-  border-color: var(--theme-primary, #2563EB);
+  border-color: var(--brand-primary, #2563EB);
 }
 
 .theme-focus:focus-visible {
-  outline: 3px solid var(--theme-focus, #2563EB);
+  outline: 3px solid var(--brand-primary, #2563EB);
   outline-offset: 2px;
 }

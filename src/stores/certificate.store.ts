@@ -80,81 +80,14 @@ interface StudentCertificateStoreState {
   isCertificateProfileComplete: (courseUuid: string) => { isComplete: boolean; completedCount: number; totalRequiredCount: number };
   generateCertificate: (courseUuid: string) => GeneratedCertificateRecord | null;
   downloadCertificate: (courseUuid: string, format: 'pdf' | 'png') => { success: boolean; filename: string };
+  reset: () => void;
 }
 
-// SEED TEMPLATE CONFIGURATIONS (EVERY DYNAMIC FIELD IS ALWAYS MANDATORY & STUDENT EDITABLE)
-const DEFAULT_COURSE_CONFIGS: Record<string, CourseCertificateConfig> = {
-  '9c78bda1-98c2-4b11-8b81-92d3db12b501': {
-    templateUuid: 'tmpl-react19-mastery',
-    templateName: 'React 19 & Cloud Architecture Official Certificate',
-    courseUuid: '9c78bda1-98c2-4b11-8b81-92d3db12b501',
-    creationMethod: 'custom_builder',
-    certificateEnabled: true,
-    dynamicFields: [
-      {
-        uuid: 'df-1',
-        key: 'certificate_printed_name',
-        label: 'Certificate Printed Name',
-        type: 'text',
-        placeholder: 'Enter full legal name (e.g. Arun Rahul Menon)',
-        helpText: 'Enter your exact full name to be printed on certificate (do not use account nickname/initials).',
-      },
-      {
-        uuid: 'df-2',
-        key: 'date_of_birth',
-        label: 'Date of Birth',
-        type: 'date',
-        placeholder: 'YYYY-MM-DD',
-        helpText: 'Mandatory date of birth for accreditation verification.',
-      },
-      {
-        uuid: 'df-3',
-        key: 'registration_number',
-        label: 'Academy Registration Number',
-        type: 'text',
-        placeholder: 'e.g. REG-2026-9901',
-        helpText: 'Mandatory student registration number.',
-      },
-      {
-        uuid: 'df-4',
-        key: 'passport_national_id',
-        label: 'Passport / National Identity Number',
-        type: 'text',
-        placeholder: 'e.g. A-9842109',
-        helpText: 'Mandatory identity document number.',
-      },
-    ],
-  },
-};
-
-export const useStudentCertificateStore = create<StudentCertificateStoreState>()(
+export const useCertificateStore = create<StudentCertificateStoreState>()(
   persist(
     (set, get) => ({
-      courseConfigs: DEFAULT_COURSE_CONFIGS,
-      studentFieldValues: [
-        {
-          uuid: 'val-1',
-          academyUuid: '550e8400-e29b-41d4-a716-446655440000',
-          courseUuid: '9c78bda1-98c2-4b11-8b81-92d3db12b501',
-          templateUuid: 'tmpl-react19-mastery',
-          studentUuid: 'std-alex-001',
-          fieldUuid: 'df-1',
-          fieldKey: 'certificate_printed_name',
-          value: 'Arun Rahul Menon',
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          uuid: 'val-2',
-          academyUuid: '550e8400-e29b-41d4-a716-446655440000',
-          courseUuid: '9c78bda1-98c2-4b11-8b81-92d3db12b501',
-          templateUuid: 'tmpl-react19-mastery',
-          studentUuid: 'std-alex-001',
-          fieldUuid: 'df-2',
-          fieldKey: 'date_of_birth',
-          value: '2001-05-12',
-          updatedAt: new Date().toISOString(),
-        },
-      ],
+      courseConfigs: {},
+      studentFieldValues: [],
       generatedCertificates: {},
 
       getCertificateTemplate: (courseUuid) => {
@@ -162,8 +95,8 @@ export const useStudentCertificateStore = create<StudentCertificateStoreState>()
       },
 
       getCertificateFields: (courseUuid) => {
-        const config = get().courseConfigs[courseUuid];
-        return config?.certificateEnabled ? config.dynamicFields : [];
+        const config = get().getCertificateTemplate(courseUuid);
+        return config?.dynamicFields || [];
       },
 
       getTemplateFieldsForCourse: (courseUuid) => {
@@ -171,19 +104,26 @@ export const useStudentCertificateStore = create<StudentCertificateStoreState>()
       },
 
       getStudentCertificateFieldValues: (courseUuid) => {
-        const values = get().studentFieldValues.filter((v) => v.courseUuid === courseUuid);
-        const map: Record<string, string | number | boolean | null> = {};
-        values.forEach((v) => {
-          map[v.fieldKey] = v.value;
-        });
-        return map;
+        const recordMap: Record<string, string | number | boolean | null> = {};
+        get()
+          .studentFieldValues.filter((fv) => fv.courseUuid === courseUuid)
+          .forEach((fv) => {
+            recordMap[fv.fieldKey] = fv.value;
+          });
+        return recordMap;
       },
 
-      saveStudentCertificateDetails: ({ academyUuid, courseUuid, templateUuid, studentUuid, values }) => {
+      saveStudentCertificateDetails: (params) => {
+        const { academyUuid, courseUuid, templateUuid, studentUuid, values } = params;
+        const now = new Date().toISOString();
+
         set((state) => {
-          const filtered = state.studentFieldValues.filter((v) => v.courseUuid !== courseUuid);
-          const newEntries: StudentCertificateFieldValue[] = Object.entries(values).map(([fieldKey, val], idx) => ({
-            uuid: `val-${Date.now()}-${idx}`,
+          const filtered = state.studentFieldValues.filter(
+            (fv) => !(fv.courseUuid === courseUuid && fv.studentUuid === studentUuid)
+          );
+
+          const updatedEntries: StudentCertificateFieldValue[] = Object.entries(values).map(([fieldKey, val]) => ({
+            uuid: `val-${Date.now()}-${fieldKey}`,
             academyUuid,
             courseUuid,
             templateUuid,
@@ -191,13 +131,13 @@ export const useStudentCertificateStore = create<StudentCertificateStoreState>()
             fieldUuid: `field-${fieldKey}`,
             fieldKey,
             value: val,
-            updatedAt: new Date().toISOString(),
+            updatedAt: now,
           }));
-          return { studentFieldValues: [...filtered, ...newEntries] };
-        });
 
-        // Trigger automatic certificate generation check
-        get().generateCertificate(courseUuid);
+          return {
+            studentFieldValues: [...filtered, ...updatedEntries],
+          };
+        });
       },
 
       saveCertificateFieldValues: (params) => {
@@ -209,7 +149,6 @@ export const useStudentCertificateStore = create<StudentCertificateStoreState>()
         const currentValues = get().getStudentCertificateFieldValues(courseUuid);
 
         let completedCount = 0;
-        // EVERY FIELD IS MANDATORY. NO EXCEPTIONS.
         fields.forEach((f) => {
           const val = currentValues[f.key];
           if (val !== undefined && val !== null && String(val).trim() !== '') {
@@ -232,7 +171,7 @@ export const useStudentCertificateStore = create<StudentCertificateStoreState>()
         const studentValues = get().getStudentCertificateFieldValues(courseUuid);
 
         const certUuid = `cert-${courseUuid}`;
-        const certNumber = `CS-CERT-2026-98741`;
+        const certNumber = `CS-CERT-${Date.now().toString().slice(-6)}`;
         const printedName = String(studentValues.certificate_printed_name || '');
 
         if (!profileStatus.isComplete || !printedName.trim()) {
@@ -242,11 +181,11 @@ export const useStudentCertificateStore = create<StudentCertificateStoreState>()
             courseUuid,
             templateUuid: config.templateUuid,
             creationMethod: config.creationMethod,
-            studentName: printedName || 'A. Rahul (Incomplete)',
+            studentName: printedName || 'Student Name',
             studentPrintedName: printedName,
-            courseTitle: 'React 19 & Cloud Architecture',
-            academyName: 'Bright Academy of Technology',
-            instructorName: 'John Instructor',
+            courseTitle: 'Course Title',
+            academyName: 'Academy Name',
+            instructorName: 'Instructor Name',
             issuedAt: new Date().toISOString().split('T')[0],
             status: 'Details Required',
             mergedValues: studentValues,
@@ -261,9 +200,8 @@ export const useStudentCertificateStore = create<StudentCertificateStoreState>()
             generatedCertificates: { ...state.generatedCertificates, [courseUuid]: incompleteRecord },
           }));
           return incompleteRecord;
-        };
+        }
 
-        // Complete & Ready to Download (Uses exact student-entered values)
         const readyRecord: GeneratedCertificateRecord = {
           uuid: certUuid,
           certificateNumber: certNumber,
@@ -272,15 +210,13 @@ export const useStudentCertificateStore = create<StudentCertificateStoreState>()
           creationMethod: config.creationMethod,
           studentName: printedName,
           studentPrintedName: printedName,
-          courseTitle: 'React 19 & Cloud Architecture',
-          academyName: 'Bright Academy of Technology',
-          instructorName: 'John Instructor',
+          courseTitle: 'Course Title',
+          academyName: 'Academy Name',
+          instructorName: 'Instructor Name',
           issuedAt: new Date().toISOString().split('T')[0],
           status: 'Ready to Download',
           mergedValues: {
             ...studentValues,
-            course_title: 'React 19 & Cloud Architecture',
-            academy_name: 'Bright Academy of Technology',
             issue_date: new Date().toISOString().split('T')[0],
           },
           pdfUrl: `/downloads/certificates/${certNumber}.pdf`,
@@ -308,9 +244,13 @@ export const useStudentCertificateStore = create<StudentCertificateStoreState>()
           filename: `${cert.certificateNumber}.${format}`,
         };
       },
+
+      reset: () => set({ courseConfigs: {}, studentFieldValues: [], generatedCertificates: {} }),
     }),
     {
       name: 'cubixskill-student-certificate-store',
     }
   )
 );
+
+export const useStudentCertificateStore = useCertificateStore;

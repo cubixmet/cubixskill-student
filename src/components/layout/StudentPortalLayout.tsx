@@ -25,6 +25,8 @@ import { useAcademyStore, FIXED_PORTAL_SURFACES } from '../../stores/academy.sto
 import { useCourseStore } from '../../stores/course.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { saveLastActiveCourse } from '../../utils/last-active-course.utility';
+import { ThemeToggle } from '../ui/ThemeToggle';
+import { Avatar } from '../ui/Avatar';
 
 export const StudentPortalLayout: React.FC = () => {
   const { academyUuid = '550e8400-e29b-41d4-a716-446655440000', courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501' } = useParams<{
@@ -119,7 +121,7 @@ export const StudentPortalLayout: React.FC = () => {
 
   return (
     <div
-      className="min-h-screen flex flex-col font-sans bg-[#F8FAFC] text-[#0F172A] text-xs hide-scrollbar"
+      className="min-h-screen flex flex-col font-sans bg-[#F8FAFC] dark:bg-[#0B1120] text-[#0F172A] dark:text-[#F8FAFC] text-xs hide-scrollbar"
       style={
         {
           '--theme-primary': theme.primaryColor || '#2563EB',
@@ -167,17 +169,16 @@ export const StudentPortalLayout: React.FC = () => {
 
       {/* 1. TOP HEADER (COMPACT 56px-60px HEIGHT) */}
       <header
-        style={{ backgroundColor: FIXED_PORTAL_SURFACES.headerBackground }}
-        className="h-14 sm:h-[60px] border-b border-slate-200/80 px-3 sm:px-6 sticky top-0 z-40 flex items-center justify-between shadow-2xs"
+        className="h-14 sm:h-[60px] bg-white dark:bg-[#111827] border-b border-slate-200/80 dark:border-[#263244] px-3 sm:px-6 sticky top-0 z-40 flex items-center justify-between shadow-2xs"
       >
         {/* DESKTOP LEFT BRANDING */}
         <div className="hidden md:flex items-center gap-3">
-          <img src={academy?.logoUrl} alt="Logo" className="w-8 h-8 rounded-xl object-cover border border-slate-200 shadow-2xs" />
+          <Avatar src={academy?.logoUrl} name={academy?.name || 'Academy'} type="academy" size="sm" />
           <div>
-            <span className="font-semibold text-xs text-slate-900 block leading-tight">
+            <span className="font-semibold text-xs text-slate-900 dark:text-[#F8FAFC] block leading-tight">
               {academy?.name || 'Academy'}
             </span>
-            <span className="text-[11px] text-slate-500 font-semibold truncate max-w-xs block">
+            <span className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-semibold truncate max-w-xs block">
               {course?.title ? (isDemoSession ? `${course.title} (DEMO)` : course.title) : 'Selected Course'}
             </span>
           </div>
@@ -187,16 +188,12 @@ export const StudentPortalLayout: React.FC = () => {
         <div className="grid md:hidden grid-cols-[minmax(0,1fr)_44px] items-center gap-2.5 w-full h-full">
           {/* 1. BRANDING BLOCK (LOGO + ACADEMY NAME & SUBTITLE) */}
           <div className="flex items-center gap-2.5 min-w-0">
-            <img
-              src={academy?.logoUrl || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=100'}
-              alt={academy?.name || 'Academy Logo'}
-              className="w-8 h-8 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0"
-            />
+            <Avatar src={academy?.logoUrl} name={academy?.name || 'CodeVerse Software Academy'} type="academy" size="sm" />
             <div className="min-w-0">
-              <span className="text-[13px] font-semibold text-slate-950 truncate block leading-tight">
+              <span className="text-[13px] font-semibold text-slate-950 dark:text-[#F8FAFC] truncate block leading-tight">
                 {academy?.name || 'CodeVerse Software Academy'}
               </span>
-              <span className="text-[10px] sm:text-[11px] font-normal text-slate-500 truncate block">
+              <span className="text-[10px] sm:text-[11px] font-normal text-slate-500 dark:text-[#94A3B8] truncate block">
                 {course?.title ? (isDemoSession ? `${course.title} (DEMO)` : course.title) : 'Node.js Microservices & Event-Driven Systems'}
               </span>
             </div>
@@ -206,10 +203,10 @@ export const StudentPortalLayout: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate(`${baseUrl}/notifications`)}
-            className="w-11 h-11 rounded-xl border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-slate-100 cursor-pointer relative min-h-[44px] min-w-[44px]"
+            className="w-11 h-11 rounded-xl border border-slate-200 dark:border-[#263244] bg-white dark:bg-[#172033] flex items-center justify-center text-slate-600 dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-[#1E293B] cursor-pointer relative min-h-[44px] min-w-[44px]"
             title="Notifications"
           >
-            <Bell className="w-4 h-4 text-slate-600" />
+            <Bell className="w-4 h-4 text-slate-600 dark:text-[#CBD5E1]" />
             <span
               className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full animate-pulse"
               style={{ backgroundColor: theme.primaryColor }}
@@ -219,13 +216,15 @@ export const StudentPortalLayout: React.FC = () => {
 
         {/* DESKTOP RIGHT PROFILE & NOTIFICATIONS */}
         <div className="hidden md:flex items-center gap-2">
+          <ThemeToggle />
+
           <button
             type="button"
             onClick={() => navigate(`${baseUrl}/notifications`)}
-            className="relative p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="relative p-2 rounded-xl text-slate-500 dark:text-[#94A3B8] hover:text-slate-900 dark:hover:text-[#F8FAFC] hover:bg-slate-100 dark:hover:bg-[#172033] transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
             title="Notifications"
           >
-            <Bell className="w-5 h-5 text-[#64748B]" />
+            <Bell className="w-5 h-5 text-[#64748B] dark:text-[#94A3B8]" />
             <span
               className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full animate-pulse"
               style={{ backgroundColor: theme.primaryColor }}
@@ -237,18 +236,18 @@ export const StudentPortalLayout: React.FC = () => {
             <button
               type="button"
               onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-              className="flex items-center gap-2 border-l border-slate-200 pl-3 py-1 hover:bg-slate-50 rounded-xl transition-all cursor-pointer min-h-[44px]"
+              className="flex items-center gap-2 border-l border-slate-200 dark:border-[#263244] pl-3 py-1 hover:bg-slate-50 dark:hover:bg-[#172033] rounded-xl transition-all cursor-pointer min-h-[44px]"
             >
-              <img src={user?.avatarUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-slate-200 shadow-2xs" />
-              <span className="font-semibold text-xs text-slate-900">{user?.fullName}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              <Avatar src={user?.avatarUrl} name={user?.fullName || user?.email} size="xs" />
+              <span className="font-semibold text-xs text-slate-900 dark:text-[#F8FAFC]">{user?.fullName}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-[#94A3B8]" />
             </button>
 
             {profileDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 text-left font-sans text-xs">
-                <div className="px-4 py-2 border-b border-slate-100">
-                  <span className="font-semibold text-slate-900 block truncate">{user?.fullName}</span>
-                  <span className="text-[11px] text-slate-400 font-normal truncate block">{user?.email}</span>
+              <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-[#111827] rounded-2xl shadow-xl border border-slate-200 dark:border-[#263244] py-2 z-50 animate-in fade-in zoom-in-95 text-left font-sans text-xs">
+                <div className="px-4 py-2 border-b border-slate-100 dark:border-[#263244]">
+                  <span className="font-semibold text-slate-900 dark:text-[#F8FAFC] block truncate">{user?.fullName}</span>
+                  <span className="text-[11px] text-slate-400 dark:text-[#94A3B8] font-normal truncate block">{user?.email}</span>
                 </div>
 
                 <div className="py-1">
@@ -258,9 +257,9 @@ export const StudentPortalLayout: React.FC = () => {
                       setProfileDropdownOpen(false);
                       navigate(`${baseUrl}/settings`);
                     }}
-                    className="w-full px-4 py-2 text-left font-medium text-slate-700 hover:bg-slate-100 flex items-center gap-2.5 cursor-pointer"
+                    className="w-full px-4 py-2 text-left font-medium text-slate-700 dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-[#172033] flex items-center gap-2.5 cursor-pointer"
                   >
-                    <User className="w-4 h-4 text-[#64748B]" />
+                    <User className="w-4 h-4 text-[#64748B] dark:text-[#94A3B8]" />
                     <span>View Profile</span>
                   </button>
 
@@ -270,9 +269,9 @@ export const StudentPortalLayout: React.FC = () => {
                       setProfileDropdownOpen(false);
                       navigate(`${baseUrl}/notifications`);
                     }}
-                    className="w-full px-4 py-2 text-left font-medium text-slate-700 hover:bg-slate-100 flex items-center gap-2.5 cursor-pointer"
+                    className="w-full px-4 py-2 text-left font-medium text-slate-700 dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-[#172033] flex items-center gap-2.5 cursor-pointer"
                   >
-                    <Bell className="w-4 h-4 text-[#64748B]" />
+                    <Bell className="w-4 h-4 text-[#64748B] dark:text-[#94A3B8]" />
                     <span>Notifications</span>
                   </button>
 
@@ -282,18 +281,18 @@ export const StudentPortalLayout: React.FC = () => {
                       setProfileDropdownOpen(false);
                       navigate(`${baseUrl}/settings`);
                     }}
-                    className="w-full px-4 py-2 text-left font-medium text-slate-700 hover:bg-slate-100 flex items-center gap-2.5 cursor-pointer"
+                    className="w-full px-4 py-2 text-left font-medium text-slate-700 dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-[#172033] flex items-center gap-2.5 cursor-pointer"
                   >
-                    <Settings className="w-4 h-4 text-[#64748B]" />
+                    <Settings className="w-4 h-4 text-[#64748B] dark:text-[#94A3B8]" />
                     <span>Profile &amp; Settings</span>
                   </button>
                 </div>
 
-                <div className="pt-1 border-t border-slate-100">
+                <div className="pt-1 border-t border-slate-100 dark:border-[#263244]">
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="w-full px-4 py-2 text-left font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2.5 cursor-pointer"
+                    className="w-full px-4 py-2 text-left font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2.5 cursor-pointer"
                   >
                     <LogOut className="w-4 h-4 text-red-500" />
                     <span>Log Out</span>
@@ -309,10 +308,9 @@ export const StudentPortalLayout: React.FC = () => {
       <div className="flex-1 flex max-w-7xl w-full mx-auto">
         {/* DESKTOP LEFT NAVIGATION SIDEBAR */}
         <aside
-          style={{ backgroundColor: FIXED_PORTAL_SURFACES.sidebarBackground }}
-          className="hidden md:block w-60 border-r border-slate-200/80 p-3 space-y-1 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto hide-scrollbar"
+          className="hidden md:block w-60 bg-white dark:bg-[#111827] border-r border-slate-200/80 dark:border-[#263244] p-3 space-y-1 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto hide-scrollbar"
         >
-          <div className="px-3 py-2 text-[10px] font-semibold uppercase text-slate-400 tracking-wider">Course Navigation</div>
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase text-slate-400 dark:text-[#64748B] tracking-wider">Course Navigation</div>
           {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const isSelected = isNavItemActive(item.path);
@@ -325,7 +323,7 @@ export const StudentPortalLayout: React.FC = () => {
                 className={`w-full px-3 py-2.5 rounded-xl font-medium text-xs flex items-center justify-between transition-all cursor-pointer min-h-[44px] ${
                   isSelected
                     ? 'shadow-2xs font-semibold'
-                    : 'text-[#475569] hover:bg-slate-100 hover:text-slate-900'
+                    : 'text-[#475569] dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-[#172033] hover:text-slate-900 dark:hover:text-[#F8FAFC]'
                 }`}
                 style={{
                   backgroundColor: isSelected ? (theme.primarySoft || '#EFF6FF') : undefined,
@@ -360,7 +358,7 @@ export const StudentPortalLayout: React.FC = () => {
 
       {/* 3. MOBILE BOTTOM NAVIGATION (<768px) - Hidden on /personal-chat */}
       {!location.pathname.includes('/personal-chat') && (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 pb-[env(safe-area-inset-bottom)] shadow-lg font-sans text-[10px] font-semibold">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border-t border-slate-200/90 dark:border-[#263244] pb-[env(safe-area-inset-bottom)] shadow-lg font-sans text-[10px] font-semibold">
           <div className="grid h-16 grid-cols-5 items-center">
             <button
               type="button"
@@ -413,9 +411,9 @@ export const StudentPortalLayout: React.FC = () => {
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] text-slate-600 hover:text-slate-900 cursor-pointer"
+              className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] text-slate-600 dark:text-[#CBD5E1] hover:text-slate-900 dark:hover:text-[#F8FAFC] cursor-pointer"
             >
-              <Menu className="w-4 h-4 text-slate-700" />
+              <Menu className="w-4 h-4 text-slate-700 dark:text-[#CBD5E1]" />
               <span>More</span>
             </button>
           </div>
@@ -432,25 +430,25 @@ export const StudentPortalLayout: React.FC = () => {
           />
 
           {/* FULL-HEIGHT RIGHT DRAWER PANEL */}
-          <div className="relative w-80 max-w-[85vw] h-full bg-white shadow-2xl flex flex-col justify-between z-10 text-left font-sans text-xs overflow-y-auto hide-scrollbar">
+          <div className="relative w-80 max-w-[85vw] h-full bg-white dark:bg-[#111827] shadow-2xl flex flex-col justify-between z-10 text-left font-sans text-xs overflow-y-auto hide-scrollbar border-l border-slate-200 dark:border-[#263244]">
             {/* DRAWER HEADER: STUDENT PROFILE DETAILS */}
-            <div className="p-4 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
+            <div className="p-4 border-b border-slate-100 dark:border-[#263244] bg-slate-50/80 dark:bg-[#0F172A] flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
                 <img
                   src={user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120'}
                   alt="Avatar"
-                  className="w-10 h-10 rounded-full object-cover border border-slate-200 shadow-2xs shrink-0"
+                  className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-[#263244] shadow-2xs shrink-0"
                 />
                 <div className="min-w-0">
-                  <span className="font-bold text-xs text-slate-950 block truncate">{user?.fullName || 'Alex Student'}</span>
-                  <span className="text-[11px] text-slate-400 font-normal truncate block">{user?.email || 'alex.student@cubixskill.com'}</span>
+                  <span className="font-bold text-xs text-slate-950 dark:text-[#F8FAFC] block truncate">{user?.fullName || 'Alex Student'}</span>
+                  <span className="text-[11px] text-slate-400 dark:text-[#94A3B8] font-normal truncate block">{user?.email || 'alex.student@cubixskill.com'}</span>
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
-                className="w-8 h-8 rounded-lg bg-slate-200/60 flex items-center justify-center text-slate-600 font-bold hover:bg-slate-200 cursor-pointer"
+                className="w-8 h-8 rounded-lg bg-slate-200/60 dark:bg-[#172033] flex items-center justify-center text-slate-600 dark:text-[#CBD5E1] font-bold hover:bg-slate-200 dark:hover:bg-[#1E293B] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -458,7 +456,7 @@ export const StudentPortalLayout: React.FC = () => {
 
             {/* DRAWER BODY: COURSE NAVIGATION & OPTIONS */}
             <div className="p-3 space-y-1 flex-1 overflow-y-auto">
-              <div className="px-3 py-1.5 text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+              <div className="px-3 py-1.5 text-[10px] font-bold uppercase text-slate-400 dark:text-[#64748B] tracking-wider">
                 Course Navigation
               </div>
 
@@ -477,7 +475,7 @@ export const StudentPortalLayout: React.FC = () => {
                     className="w-full h-11 px-3 rounded-xl font-medium flex items-center justify-between transition-all cursor-pointer min-h-[44px] whitespace-nowrap"
                     style={{
                       backgroundColor: isSelected ? (theme.primarySoft || '#EFF6FF') : undefined,
-                      color: isSelected ? theme.primaryColor : '#1E293B',
+                      color: isSelected ? theme.primaryColor : undefined,
                     }}
                   >
                     <div className="inline-flex items-center gap-3 min-w-0">
@@ -491,26 +489,26 @@ export const StudentPortalLayout: React.FC = () => {
             </div>
 
             {/* DRAWER FOOTER: PROFILE, SETTINGS & LOGOUT */}
-            <div className="p-3 border-t border-slate-100 bg-slate-50/50 space-y-1">
+            <div className="p-3 border-t border-slate-100 dark:border-[#263244] bg-slate-50/50 dark:bg-[#0F172A] space-y-1">
               <button
                 type="button"
                 onClick={() => {
                   setMobileMenuOpen(false);
                   navigate(`${baseUrl}/settings`);
                 }}
-                className="w-full h-11 px-3 rounded-xl font-semibold flex items-center justify-between hover:bg-slate-100 text-slate-700 min-h-[44px] cursor-pointer whitespace-nowrap"
+                className="w-full h-11 px-3 rounded-xl font-semibold flex items-center justify-between hover:bg-slate-100 dark:hover:bg-[#172033] text-slate-700 dark:text-[#CBD5E1] min-h-[44px] cursor-pointer whitespace-nowrap"
               >
                 <div className="flex items-center gap-3">
-                  <Settings className="w-4 h-4 text-slate-500" />
+                  <Settings className="w-4 h-4 text-slate-500 dark:text-[#94A3B8]" />
                   <span>Profile &amp; Settings</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-300" />
+                <ChevronRight className="w-4 h-4 text-slate-300 dark:text-[#64748B]" />
               </button>
 
               <button
                 type="button"
                 onClick={handleLogout}
-                className="w-full h-11 px-3 rounded-xl font-semibold flex items-center justify-between hover:bg-rose-50 text-rose-600 min-h-[44px] cursor-pointer whitespace-nowrap"
+                className="w-full h-11 px-3 rounded-xl font-semibold flex items-center justify-between hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 min-h-[44px] cursor-pointer whitespace-nowrap"
               >
                 <div className="flex items-center gap-3">
                   <LogOut className="w-4 h-4 text-rose-500" />

@@ -2,12 +2,20 @@ import React, { useEffect } from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { router } from './router';
 import { useAuthStore } from './features/auth/store/auth.store';
+import { useThemeStore } from './stores/theme.store';
+import { clearTokens } from './services/apiClient';
 
 import { ToastContainer } from './components/ui/Toast';
 
 export const App: React.FC = () => {
   useEffect(() => {
-    // 1. Restore authenticated session on app start
+    // 0. Purge legacy browser token storage keys if any exist
+    clearTokens();
+
+    // 1. Initialize Light/Dark/System theme store
+    useThemeStore.getState().initTheme();
+
+    // 2. Restore authenticated session on app start
     useAuthStore.getState().restoreSession();
 
     // 2. Multi-tab session synchronization event listener

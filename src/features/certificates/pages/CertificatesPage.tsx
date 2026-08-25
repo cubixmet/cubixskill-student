@@ -21,6 +21,7 @@ import { toast } from '../../../stores/toast.store';
 
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { EmptyState } from '../../../components/ui/EmptyState';
+import { CourseTabs } from '../../learning/components/CourseTabs';
 
 export const CertificatesPage: React.FC = () => {
   const { academyUuid = '550e8400-e29b-41d4-a716-446655440000', courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501' } = useParams<{
@@ -29,7 +30,7 @@ export const CertificatesPage: React.FC = () => {
   }>();
   const navigate = useNavigate();
 
-  const isCertificateProfileComplete = useStudentCertificateStore((state) => state.isCertificateProfileComplete);
+  const isCertificateProfileComplete = useStudentCertificateStore((state: any) => state.isCertificateProfileComplete);
   const certProfileStatus = isCertificateProfileComplete(courseUuid);
 
   const academies = useAcademyStore((state) => state.academies);
@@ -75,6 +76,8 @@ export const CertificatesPage: React.FC = () => {
 
   return (
     <div className="space-y-6 font-sans text-xs text-left max-w-4xl mx-auto hide-scrollbar pb-12">
+      {/* COURSE TABS ROW */}
+      <CourseTabs academyUuid={academyUuid} courseUuid={courseUuid} activeTab="certificates" />
 
       {/* 1. PAGE HEADER & STATS SUMMARY */}
       <Card padding="md" className="bg-white border border-slate-200/80 shadow-2xs space-y-4">

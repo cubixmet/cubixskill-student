@@ -3,12 +3,17 @@ import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Shield, ArrowRight, ArrowLeft, Sparkles } from 'lucide-react';
+import { Shield, ArrowRight, Eye, EyeOff, Mail, RefreshCw, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
-import { useAcademyStore } from '../../../stores/academy.store';
-import { useCourseStore } from '../../../stores/course.store';
-import { useEnrollmentStore } from '../../../stores/enrollment.store';
-import { resolveStudentEntry } from '../../../utils/studentEntryResolver';
+import { usePublicAcademy } from '../../public-academy/layouts/PublicAcademyLayout';
+import { authService } from '../services/auth.service';
+import {
+  validateInternalReturnPath,
+  getCheckoutIntent,
+  buildRegisterUrl,
+  setLastAcademy,
+} from '../../../lib/navigationIntent';
+import { Avatar } from '../../../components/ui/Avatar';
 
 const loginSchema = z.object({
   email: z.string().trim().email('Enter a valid email address.'),
@@ -20,212 +25,280 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export const AcademyLoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { academyUuid } = useParams<{ academyUuid: string }>();
   const [searchParams] = useSearchParams();
-  const returnTo = searchParams.get('returnTo');
-  const courseUuid = searchParams.get('course');
-  const intent = (searchParams.get('intent') as 'demo' | 'full') || 'full';
+  const { academyUuid: paramUuid } = useParams<{ academyUuid: string }>();
+  const context = usePublicAcademy();
 
-  const getAcademyByUuid = useAcademyStore((state) => state.getAcademyByUuid);
-  const loadAcademyThemeByUuid = useAcademyStore((state) => state.loadAcademyThemeByUuid);
-  const getCourseByUuid = useCourseStore((state) => state.getCourseByUuid);
+  const academyUuid = context?.academyUuid || paramUuid || '';
+  const academyEntity = context?.academyEntity || {
+    name: 'Academy',
+    logoUrl: '',
+  };
 
-  const createOrUpdateEnrollment = useEnrollmentStore((state) => state.createOrUpdateEnrollment);
+  const nextParam = searchParams.get('next');
+
+  // Save last academy context
+  useEffect(() => {
+    if (academyUuid) {
+      setLastAcademy(academyUuid);
+    }
+  }, [academyUuid]);
 
   const login = useAuthStore((state) => state.login);
   const authError = useAuthStore((state) => state.authError);
   const clearAuthError = useAuthStore((state) => state.clearAuthError);
 
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
 
-  useEffect(() => {
-    if (academyUuid) {
-      loadAcademyThemeByUuid(academyUuid);
-    }
-  }, [academyUuid, loadAcademyThemeByUuid]);
+  const [verificationPendingEmail, setVerificationPendingEmail] = useState<string | null>(null);
+  const [setupPendingEmail, setSetupPendingEmail] = useState<string | null>(null);
+  const [resendMsg, setResendMsg] = useState<string | null>(null);
 
-  const academy = getAcademyByUuid(academyUuid || '');
-
-  const backUrl = academyUuid
-    ? courseUuid
-      ? `/${academyUuid}/courses/${courseUuid}`
-      : `/${academyUuid}/courses`
-    : '/';
-
-  const registerUrl = academyUuid
-    ? `/${academyUuid}/register?${new URLSearchParams({
-        ...(courseUuid ? { course: courseUuid } : {}),
-        intent,
-        ...(returnTo ? { returnTo } : {}),
-      }).toString()}`
-    : '/register';
+  const registerUrl = buildRegisterUrl(academyUuid, nextParam || undefined);
+  const forgotPasswordUrl = `/${academyUuid}/forgot-password`;
 
   const {
     register,
     handleSubmit,
     formState: { errors },
+    getValues,
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'student@example.com',
-      password: 'password123',
+      email: '',
+      password: '',
       rememberMe: true,
     },
   });
 
-  const handleFormError = () => {
-    const firstError = document.querySelector('.border-red-500, input:invalid');
-    if (firstError) {
-      firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  };
-
   const handleFormSubmit = async (data: LoginFormData) => {
     setIsSubmitting(true);
     clearAuthError();
-    const success = await login({
-      email: data.email,
-      password: data.password,
-      rememberMe: data.rememberMe,
-      academyUuid,
-    });
-    setIsSubmitting(false);
+    setVerificationPendingEmail(null);
+    setSetupPendingEmail(null);
+    setResendMsg(null);
 
-    if (success) {
-      const authStudent = useAuthStore.getState().student;
-      const studentUuid = authStudent?.uuid || 'std-production-1';
-
-      // 1. Provision or restore course enrollment if course & intent present
-      if (courseUuid && academyUuid) {
-        const courseObj = getCourseByUuid(courseUuid);
-        createOrUpdateEnrollment({
-          studentUuid,
-          academyUuid,
-          courseUuid,
-          accessType: intent === 'demo' ? 'demo' : 'full',
-          demoDurationDays: courseObj?.demoDurationDays || 5,
-        });
-      }
-
-      // 2. Resolve target destination using strict priority chain
-      const targetRoute = resolveStudentEntry({
-        studentUuid,
+    try {
+      const success = await login({
+        email: data.email,
+        password: data.password,
+        rememberMe: data.rememberMe,
         academyUuid,
-        courseUuid: courseUuid || undefined,
-        returnTo,
-        intent,
       });
 
-      navigate(targetRoute, { replace: true });
+      if (success) {
+        // 1. Check for valid 'next' return URL
+        const validNext = validateInternalReturnPath(nextParam, academyUuid);
+        if (validNext) {
+          navigate(validNext, { replace: true });
+          return;
+        }
+
+        // 2. Check for checkout intent in sessionStorage
+        const checkoutIntent = getCheckoutIntent();
+        if (checkoutIntent && checkoutIntent.academyUuid === academyUuid) {
+          const intentPath = `/${checkoutIntent.academyUuid}/checkout/${checkoutIntent.courseUuid}`;
+          const validIntentPath = validateInternalReturnPath(intentPath, academyUuid);
+          if (validIntentPath) {
+            navigate(validIntentPath, { replace: true });
+            return;
+          }
+        }
+
+        // 3. Fallback to default student dashboard
+        navigate(`/${academyUuid}/dashboard`, { replace: true });
+      }
+    } catch (err: any) {
+      const errCode = err.response?.data?.code || err.code;
+      if (errCode === 'EMAIL_VERIFICATION_REQUIRED') {
+        setVerificationPendingEmail(data.email);
+      } else if (errCode === 'PASSWORD_SETUP_REQUIRED' || errCode === 'ACCOUNT_SETUP_PENDING') {
+        setSetupPendingEmail(data.email);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  if (!academy) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4 font-sans text-xs bg-[#F8FAFC]">
-        <h1 className="text-2xl font-bold text-slate-900">Academy Not Found</h1>
-        <Link to="/" className="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold">
-          Return to Portal
-        </Link>
-      </div>
-    );
-  }
+  const handleResendVerification = async () => {
+    const emailToUse = verificationPendingEmail || getValues('email');
+    if (!emailToUse) return;
+    setIsResending(true);
+    setResendMsg(null);
+    try {
+      const msg = await authService.resendVerificationEmail({
+        email: emailToUse,
+        academy_uuid: academyUuid,
+      });
+      setResendMsg(msg);
+    } catch {
+      setResendMsg('If an eligible account exists, a verification email has been sent.');
+    } finally {
+      setIsResending(false);
+    }
+  };
 
-  const primaryStyle = { backgroundColor: academy.theme.primaryColor };
+  const handleResendSetupEmail = async () => {
+    const emailToUse = setupPendingEmail || getValues('email');
+    if (!emailToUse) return;
+    setIsResending(true);
+    setResendMsg(null);
+    try {
+      const msg = await authService.resendSetupEmail({
+        email: emailToUse,
+        academy_uuid: academyUuid,
+      });
+      setResendMsg(msg);
+    } catch {
+      setResendMsg('If an eligible account exists, a password setup email has been sent.');
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-3 sm:p-4 font-sans text-slate-900">
-      <div className="w-full max-w-[440px] bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-100 text-left space-y-6">
-        {/* BACK TO COURSE LINK */}
-        <div className="flex items-center justify-between">
-          <Link
-            to={backUrl}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Course</span>
-          </Link>
-          {intent === 'demo' && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-              <Sparkles className="w-3 h-3 fill-amber-500 text-amber-500" />
-              <span>Demo Login</span>
-            </span>
-          )}
-        </div>
-
+    <div className="py-12 px-4 flex items-center justify-center font-sans min-h-[calc(100dvh-4rem)]">
+      <div className="w-full max-w-[420px] bg-white dark:bg-[#111827] rounded-[14px] p-6 sm:p-8 shadow-xl border border-[#E2E8F0] dark:border-[#263244] text-left space-y-6 min-w-0">
         {/* BRANDING HEADER */}
         <div className="text-center space-y-3">
-          <Link to={`/${academy.uuid}`} className="inline-flex items-center gap-3 group">
-            <img
-              src={academy.logoUrl}
-              alt={academy.name}
-              className="w-12 h-12 rounded-2xl object-cover border border-slate-200 shadow-xs group-hover:scale-105 transition-transform"
-            />
+          <Link to={`/${academyUuid}`} className="inline-flex items-center gap-3 group">
+            <Avatar src={academyEntity.logoUrl} name={academyEntity.name} type="academy" size="lg" />
             <div className="text-left">
-              <span className="font-extrabold text-base text-slate-900 block leading-tight">{academy.name}</span>
-              <span className="text-[11px] text-slate-500 font-medium">CubixSkill Student Portal</span>
+              <span className="font-semibold text-base text-[#0F172A] dark:text-[#F8FAFC] block leading-tight">{academyEntity.name}</span>
+              <span className="text-[11px] text-[#64748B] dark:text-[#94A3B8] font-normal">Student Sign In</span>
             </div>
           </Link>
 
-          <div className="pt-2">
-            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-              {intent === 'demo' ? 'Sign In for Demo Access' : 'Student Account Login'}
+          <div className="pt-2 space-y-1">
+            <h1 className="text-xl font-semibold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight">
+              Student Account Login
             </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Sign in with your Global Student Identity to access enrolled courses.
+            <p className="text-xs text-[#64748B] dark:text-[#94A3B8] font-normal">
+              Sign in with your email and password to access enrolled courses.
             </p>
           </div>
         </div>
 
-        {authError && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-semibold text-center">
-            {authError}
-          </div>
-        )}
+        {/* EMAIL VERIFICATION REQUIRED BANNER */}
+        {verificationPendingEmail ? (
+          <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-700/60 space-y-3 text-xs text-amber-900 dark:text-amber-300">
+            <div className="flex items-start gap-2.5">
+              <Mail className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <span className="font-semibold block text-sm">Email Verification Required</span>
+                <p className="font-normal text-amber-800 dark:text-amber-300/90 leading-relaxed">
+                  Please verify your email address before signing in. Check your inbox for the verification email sent to <span className="font-semibold font-mono">{verificationPendingEmail}</span>.
+                </p>
+              </div>
+            </div>
 
-        <form onSubmit={handleSubmit(handleFormSubmit, handleFormError)} className="space-y-4">
+            {resendMsg && (
+              <p className="text-[11.5px] font-medium text-emerald-700 dark:text-[#6EE7B7] bg-emerald-50 dark:bg-[rgba(16,185,129,0.08)] p-2 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
+                {resendMsg}
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={handleResendVerification}
+              disabled={isResending}
+              className="w-full h-9 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs rounded-lg inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isResending ? 'animate-spin' : ''}`} />
+              <span>{isResending ? 'Sending Email...' : 'Resend Verification Email'}</span>
+            </button>
+          </div>
+        ) : setupPendingEmail ? (
+          /* PASSWORD SETUP REQUIRED BANNER */
+          <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-700/60 space-y-3 text-xs text-amber-900 dark:text-amber-300">
+            <div className="flex items-start gap-2.5">
+              <Mail className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <span className="font-semibold block text-sm">Password Setup Required</span>
+                <p className="font-normal text-amber-800 dark:text-amber-300/90 leading-relaxed">
+                  Please use the password setup link sent to your email address: <span className="font-semibold font-mono">{setupPendingEmail}</span>.
+                </p>
+              </div>
+            </div>
+
+            {resendMsg && (
+              <p className="text-[11.5px] font-medium text-emerald-700 dark:text-[#6EE7B7] bg-emerald-50 dark:bg-[rgba(16,185,129,0.08)] p-2 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
+                {resendMsg}
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={handleResendSetupEmail}
+              disabled={isResending}
+              className="w-full h-9 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs rounded-lg inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isResending ? 'animate-spin' : ''}`} />
+              <span>{isResending ? 'Sending Email...' : 'Resend Setup Email'}</span>
+            </button>
+          </div>
+        ) : authError ? (
+          <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-[#DC2626] dark:text-[#F87171] text-xs font-normal flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{authError}</span>
+          </div>
+        ) : null}
+
+        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
           <div className="space-y-1">
-            <label htmlFor="login-email" className="block text-xs font-semibold text-slate-800">Global Student Email</label>
+            <label htmlFor="login-email" className="block text-xs font-semibold text-[#0F172A] dark:text-[#CBD5E1]">Student Email *</label>
             <input
               id="login-email"
               type="email"
+              autoComplete="email"
               placeholder="student@example.com"
               aria-invalid={!!errors.email}
-              aria-describedby={errors.email ? 'email-error' : undefined}
               {...register('email')}
-              className={`w-full h-[46px] px-3.5 rounded-xl border ${
-                errors.email ? 'border-red-500' : 'border-slate-200'
-              } bg-white text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+              className={`w-full h-11 px-3.5 rounded-xl border ${
+                errors.email ? 'border-[#DC2626] dark:border-[#F87171]' : 'border-[#E2E8F0] dark:border-[#263244]'
+              } bg-white dark:bg-[#0F172A] text-xs font-normal text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:border-[#2563EB]`}
             />
-            {errors.email && <span id="email-error" className="text-[11px] font-semibold text-red-600 block">{errors.email.message}</span>}
+            {errors.email && <span className="text-[11px] font-normal text-[#DC2626] dark:text-[#F87171] block">{errors.email.message}</span>}
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="login-password" className="block text-xs font-semibold text-slate-800">Password</label>
-            <input
-              id="login-password"
-              type="password"
-              placeholder="••••••••"
-              aria-invalid={!!errors.password}
-              aria-describedby={errors.password ? 'password-error' : undefined}
-              {...register('password')}
-              className={`w-full h-[46px] px-3.5 rounded-xl border ${
-                errors.password ? 'border-red-500' : 'border-slate-200'
-              } bg-white text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
-            />
-            {errors.password && <span id="password-error" className="text-[11px] font-semibold text-red-600 block">{errors.password.message}</span>}
+            <label htmlFor="login-password" className="block text-xs font-semibold text-[#0F172A] dark:text-[#CBD5E1]">Password *</label>
+            <div className="relative flex items-center">
+              <input
+                id="login-password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                placeholder="••••••••"
+                aria-invalid={!!errors.password}
+                {...register('password')}
+                className={`w-full h-11 pl-3.5 pr-10 rounded-xl border ${
+                  errors.password ? 'border-[#DC2626] dark:border-[#F87171]' : 'border-[#E2E8F0] dark:border-[#263244]'
+                } bg-white dark:bg-[#0F172A] text-xs font-normal text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:border-[#2563EB]`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 p-1 text-[#64748B] dark:text-[#94A3B8] hover:text-[#2563EB] dark:hover:text-[#60A5FA] cursor-pointer"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {errors.password && <span className="text-[11px] font-normal text-[#DC2626] dark:text-[#F87171] block">{errors.password.message}</span>}
           </div>
 
           <div className="flex items-center justify-between text-xs">
-            <label className="flex items-center gap-2 font-medium text-slate-700 cursor-pointer">
+            <label className="flex items-center gap-2 font-normal text-[#64748B] dark:text-[#CBD5E1] cursor-pointer">
               <input
                 type="checkbox"
                 {...register('rememberMe')}
-                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                className="w-4 h-4 rounded border-[#E2E8F0] dark:border-[#263244] text-[#2563EB] focus:ring-0 cursor-pointer"
               />
               <span>Remember me</span>
             </label>
-            <Link to="/forgot-password" className="font-semibold text-blue-600 hover:underline">
+            <Link to={forgotPasswordUrl} className="font-semibold text-[#2563EB] dark:text-[#60A5FA] hover:underline">
               Forgot Password?
             </Link>
           </div>
@@ -233,27 +306,25 @@ export const AcademyLoginPage: React.FC = () => {
           <button
             type="submit"
             disabled={isSubmitting}
-            style={primaryStyle}
-            className="w-full h-[48px] text-white font-semibold text-sm rounded-xl transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2 hover:opacity-95"
+            className="w-full h-11 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs rounded-xl transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            <span>{isSubmitting ? 'Authenticating...' : intent === 'demo' ? 'Launch Demo Access' : 'Sign In & Continue'}</span>
+            <span>{isSubmitting ? 'Signing In...' : 'Sign In'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
-        <div className="text-center pt-2 border-t border-slate-100 text-xs">
-          <span className="text-slate-500">Don't have an account? </span>
-          <Link to={registerUrl} className="font-bold text-blue-600 hover:underline">
-            Register Now
+        <div className="text-center pt-3 border-t border-[#E2E8F0] dark:border-[#263244] text-xs">
+          <span className="text-[#64748B] dark:text-[#94A3B8]">Don't have an account? </span>
+          <Link to={registerUrl} className="font-semibold text-[#2563EB] dark:text-[#60A5FA] hover:underline">
+            Create Student Account
           </Link>
         </div>
-      </div>
 
-      <div className="mt-4 flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
-        <Shield className="w-3.5 h-3.5 text-emerald-500" />
-        <span>CubixSkill Global Identity &amp; Multi-Tenant Security</span>
+        <div className="flex items-center justify-center gap-1.5 text-[11px] font-normal text-[#64748B] dark:text-[#94A3B8] pt-1">
+          <Shield className="w-3.5 h-3.5 text-emerald-500" />
+          <span>CubixSkill Security &amp; Academy Verification</span>
+        </div>
       </div>
     </div>
   );
 };
-

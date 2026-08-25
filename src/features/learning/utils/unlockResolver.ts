@@ -74,6 +74,19 @@ export function calculateLessonAccessMap(
       return;
     }
 
+    // Explicit backend unlock override if present
+    const explicitUnlocked = (lesson as any).isUnlocked ?? (lesson as any).unlocked;
+
+    if (explicitUnlocked === false) {
+      accessMap.set(lesson.id, {
+        lessonId: lesson.id,
+        status: 'locked',
+        canAccess: false,
+        lockReason: (lesson as any).lock_reason || 'previous_lesson_required',
+      });
+      return;
+    }
+
     // Determine status
     if (isCompleted) {
       accessMap.set(lesson.id, {
@@ -89,7 +102,6 @@ export function calculateLessonAccessMap(
         status: isLastAccessed ? 'in_progress' : 'unlocked',
         canAccess: true,
       });
-      // Sequential lock: subsequent uncompleted lessons remain locked until this one is completed
       previousRequiredCompleted = false;
     } else {
       accessMap.set(lesson.id, {

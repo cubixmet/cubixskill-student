@@ -25,6 +25,7 @@ export function resolveLessonPreview(lesson: CourseLesson): LessonPreviewInfo {
 
   const typeLabels: Record<LessonType, string> = {
     video: 'Video Lesson',
+    audio: 'Audio Lesson',
     stream: 'Stream Video',
     image: 'Image Diagram',
     document: 'Document / PDF',

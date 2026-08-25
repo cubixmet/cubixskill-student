@@ -1,225 +1,240 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { AlertCircle, Inbox, ListTree, Layers } from 'lucide-react';
-import { useCourseStore } from '../../../stores/course.store';
-import { useAcademyStore } from '../../../stores/academy.store';
-import { useAuthStore } from '../../../stores/auth.store';
-import { useEnrollmentStore } from '../../../stores/enrollment.store';
-import { useLearningStore } from '../../../stores/learning.store';
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { Layers, ListTree, Lock } from 'lucide-react';
+import { studentPortalService } from '../../../services/studentPortal.service';
 import { UnifiedLessonPlayer } from '../components/UnifiedLessonPlayer';
 import { LessonSidebar } from '../components/LessonSidebar';
-import { saveLastActiveCourse } from '../../../utils/last-active-course.utility';
-import { calculateLessonAccessMap } from '../utils/unlockResolver';
-import { flattenCurriculum } from '../utils/flattenCurriculum';
-import {
-  isDemoCourseRoute,
-  getCourseWithResolvedCurriculum,
-  saveDemoProgressToStorage,
-  clearDemoProgressStorage,
-  studentLearnDemoModules,
-} from '../../../mocks/studentLearnDemo';
 import { Button } from '../../../components/ui/Button';
+import { StudentStateCard } from '../../../components/ui/StudentStateCard';
+import { resolveLessonType } from '../utils/mediaResolver';
+import { useStudentCourseCurriculum } from '../hooks/useStudentCourseCurriculum';
+import { calculateLessonAccessMap } from '../utils/unlockResolver';
 
 export const LessonPlayerPage: React.FC = () => {
-  const { academyUuid, courseUuid, lessonId } = useParams<{
+  const { academyUuid, courseUuid, lessonId: paramLessonId } = useParams<{
     academyUuid?: string;
     courseUuid?: string;
     lessonId?: string;
   }>();
 
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const courses = useCourseStore((state) => state.courses);
-  const academies = useAcademyStore((state) => state.academies);
-  const student = useAuthStore((state) => state.student);
-  const getEnrollment = useEnrollmentStore((state) => state.getEnrollment);
+  const { isLoading, error, modules, allLessons, enrollment, progress, refetch } =
+    useStudentCourseCurriculum(academyUuid, courseUuid);
 
-  const completedLessonIds = useLearningStore((state) => state.completedLessonIds);
-  const markLessonComplete = useLearningStore((state) => state.markLessonComplete);
-  const lastAccessedLessonUuid = useLearningStore((state) => state.lastAccessedLessonUuid);
-  const setLastAccessedLessonUuid = useLearningStore((state) => state.setLastAccessedLessonUuid);
+  const [selectedLessonSummary, setSelectedLessonSummary] = useState<any>(null);
+  const [selectedLessonDetail, setSelectedLessonDetail] = useState<any>(null);
+  const [lessonLockError, setLessonLockError] = useState<{ isLocked: boolean; message?: string; requiredLesson?: any } | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState<boolean>(false);
+  const [isCompleting, setIsCompleting] = useState<boolean>(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState<boolean>(false);
 
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const queryLessonId = searchParams.get('lesson') || paramLessonId;
 
-  const isDemo = isDemoCourseRoute(academyUuid, courseUuid);
-
-  const course = useMemo(() => {
-    if (!academyUuid || !courseUuid) return undefined;
-    const rawCourse = courses.find(
-      (c) => c.academyUuid === academyUuid && (c.uuid === courseUuid || c.courseUuid === courseUuid)
-    );
-    // If rawCourse exists, resolve curriculum. If rawCourse doesn't exist but it's demo route, construct fallback demo CourseEntity.
-    if (!rawCourse && isDemo) {
-      return {
-        id: 'crs-1',
-        uuid: '9c78bda1-98c2-4b11-8b81-92d3db12b501',
-        courseUuid: '9c78bda1-98c2-4b11-8b81-92d3db12b501',
-        academyUuid: '550e8400-e29b-41d4-a716-446655440000',
-        title: 'Full Stack React 19 & Cloud Architecture',
-        subtitle: 'Build scalable web applications with Server Actions, Hydration, and Zustand',
-        description: 'Master the Next Generation of React 19 compiler optimizations and App Router architecture.',
-        thumbnail: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600',
-        instructorName: 'Dr. Vikramaditya Rao',
-        level: 'Intermediate' as const,
-        language: 'English',
-        progressPercent: 25,
-        completedLessonsCount: 2,
-        totalLessonsCount: 10,
-        currentModuleTitle: 'Module 1: React 19 Foundations',
-        currentLessonTitle: '1.2 React 19 Compiler Mechanics',
-        lastActiveAt: 'Just now',
-        accessExpiryDate: '2027-12-31',
-        modules: studentLearnDemoModules,
-        features: {
-          assignments: true,
-          quizzes: true,
-          liveClasses: true,
-          certificates: true,
-          announcements: true,
-          discussions: true,
-        },
-      };
-    }
-    return getCourseWithResolvedCurriculum(rawCourse, academyUuid, courseUuid);
-  }, [courses, academyUuid, courseUuid, isDemo]);
-
-  const academy = useMemo(() => {
-    if (!academyUuid) return undefined;
-    return academies.find((a) => a.uuid === academyUuid);
-  }, [academies, academyUuid]);
-
-  const studentUuid = student?.uuid || 'std-production-1';
-  const enrollment = useMemo(() => {
-    if (!courseUuid) return undefined;
-    return getEnrollment(studentUuid, courseUuid);
-  }, [getEnrollment, studentUuid, courseUuid]);
-
-  // Calculate sequential lock states for all curriculum lessons safely
-  const accessMap = useMemo(() => {
-    if (!course) return new Map();
-    return calculateLessonAccessMap({
-      course,
-      enrollment,
-      completedLessonIds,
-      lastAccessedLessonUuid,
-    });
-  }, [course, enrollment, completedLessonIds, lastAccessedLessonUuid]);
-
-  // Flatten curriculum lessons safely
-  const flattenedCurriculum = useMemo(() => flattenCurriculum(course), [course]);
-  const orderedLessons = useMemo(() => {
-    return flattenedCurriculum.map(({ module, lesson }) => ({
-      lesson,
-      moduleTitle: module.title || 'Module',
-    }));
-  }, [flattenedCurriculum]);
-
-  // Requirement 4 & 23: Default active lesson when no lesson UUID is in route
-  const defaultLessonId = isDemo ? 'mock-react19-compiler' : orderedLessons[0]?.lesson.id || '';
-  const targetLessonId = lessonId || (isDemo ? 'mock-react19-compiler' : lastAccessedLessonUuid) || defaultLessonId;
-
-  const activeIndex = useMemo(() => {
-    if (!targetLessonId || orderedLessons.length === 0) return -1;
-    return orderedLessons.findIndex(
-      (item) => item.lesson.id === targetLessonId || item.lesson.title.includes(targetLessonId)
-    );
-  }, [orderedLessons, targetLessonId]);
-
-  const activeItem = activeIndex !== -1 ? orderedLessons[activeIndex] : orderedLessons[0];
-  const activeLesson = activeItem?.lesson;
-  const moduleTitle = activeItem?.moduleTitle || 'Module 1';
-
-  const prevLessonId = activeIndex > 0 ? orderedLessons[activeIndex - 1]?.lesson.id : undefined;
-  const nextLessonId =
-    activeIndex !== -1 && activeIndex < orderedLessons.length - 1
-      ? orderedLessons[activeIndex + 1]?.lesson.id
-      : undefined;
-
-  const accessState = activeLesson ? accessMap.get(activeLesson.id) : undefined;
-  const canAccess = accessState?.canAccess ?? true;
-  const lockReason = accessState?.lockReason;
-
+  // Determine active summary lesson from URL query/params or default to first uncompleted lesson
   useEffect(() => {
-    if (activeLesson?.id && canAccess && academyUuid && courseUuid) {
-      setLastAccessedLessonUuid(activeLesson.id);
-      saveLastActiveCourse(academyUuid, courseUuid);
+    if (allLessons.length === 0) return;
+
+    let target = allLessons.find(
+      (l) => String(l.id) === String(queryLessonId) || String(l.uuid) === String(queryLessonId)
+    );
+    if (!target) {
+      target = allLessons.find((l) => !l.completed && !l.is_completed && l.unlocked !== false) || allLessons[0];
     }
-  }, [activeLesson?.id, academyUuid, courseUuid, canAccess, setLastAccessedLessonUuid]);
+    setSelectedLessonSummary(target);
+    setLessonLockError(null);
+  }, [queryLessonId, allLessons]);
+
+  // Fetch Full Selected Lesson Detail on selection change
+  useEffect(() => {
+    if (!academyUuid || !courseUuid || !selectedLessonSummary?.id) return;
+    let isMounted = true;
+
+    setIsLoadingDetail(true);
+    setSelectedLessonDetail(null);
+    setLessonLockError(null);
+
+    // If summary already indicates locked by backend
+    if (selectedLessonSummary.unlocked === false) {
+      setLessonLockError({
+        isLocked: true,
+        message: 'Complete the previous lesson to unlock this lesson.',
+        requiredLesson: selectedLessonSummary.required_lesson,
+      });
+      setIsLoadingDetail(false);
+      return;
+    }
+
+    studentPortalService
+      .getLessonDetail(academyUuid, courseUuid, selectedLessonSummary.id)
+      .then((res) => {
+        if (!isMounted) return;
+        const detailObj = res?.lesson || res;
+        setSelectedLessonDetail(detailObj);
+      })
+      .catch((err: any) => {
+        if (!isMounted) return;
+        if (err?.code === 'LESSON_LOCKED' || err?.response?.data?.code === 'LESSON_LOCKED' || err?.status === 403) {
+          const errData = err?.response?.data || err;
+          setLessonLockError({
+            isLocked: true,
+            message: errData?.detail || 'Complete the previous lesson to unlock this lesson.',
+            requiredLesson: errData?.required_lesson || selectedLessonSummary?.required_lesson,
+          });
+        } else {
+          console.warn('Using summary lesson info:', err);
+          setSelectedLessonDetail(selectedLessonSummary);
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingDetail(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [academyUuid, courseUuid, selectedLessonSummary?.id]);
+
+  const activeIndex = selectedLessonSummary
+    ? allLessons.findIndex((l) => String(l.id) === String(selectedLessonSummary.id))
+    : -1;
+  const prevLessonId = activeIndex > 0 ? allLessons[activeIndex - 1]?.id : undefined;
+  const nextLessonId = activeIndex !== -1 && activeIndex < allLessons.length - 1 ? allLessons[activeIndex + 1]?.id : undefined;
 
   const handleNavigateLesson = (newLessonId: string) => {
     if (!academyUuid || !courseUuid) return;
-    saveLastActiveCourse(academyUuid, courseUuid);
-    setLastAccessedLessonUuid(newLessonId);
-    navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/learn/${newLessonId}`);
+    const target = allLessons.find((l) => String(l.id) === String(newLessonId));
+    if (target) {
+      setSelectedLessonSummary(target);
+    }
+    navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/learn?lesson=${newLessonId}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleMarkComplete = () => {
-    if (activeLesson?.id) {
-      markLessonComplete(activeLesson.id);
-      if (isDemo) {
-        saveDemoProgressToStorage({
-          completedLessonIds: [...completedLessonIds, activeLesson.id],
-          lastAccessedLessonId: activeLesson.id,
-        });
+  const handleMarkComplete = async () => {
+    const targetId = selectedLessonSummary?.id;
+    if (!academyUuid || !courseUuid || !targetId || isCompleting) return;
+
+    setIsCompleting(true);
+    try {
+      const res = await studentPortalService.markLessonComplete(academyUuid, courseUuid, targetId);
+      if (res && (res.success || res.course_progress_percent !== undefined)) {
+        await refetch();
+        setSelectedLessonSummary((prev: any) => (prev ? { ...prev, completed: true, is_completed: true } : prev));
+        setSelectedLessonDetail((prev: any) => (prev ? { ...prev, completed: true, is_completed: true } : prev));
+        if (res.next_lesson?.id) {
+          handleNavigateLesson(res.next_lesson.id);
+        }
       }
+    } catch (_) {
+      // Error handling
+    } finally {
+      setIsCompleting(false);
     }
   };
 
-  const handleResetDemoProgress = () => {
-    if (isDemo) {
-      clearDemoProgressStorage();
-      window.location.reload();
-    }
-  };
-
-  // Error handling if academy or course completely missing and NOT demo
-  if (!isDemo && (!academyUuid || !courseUuid || !course)) {
+  if (isLoading) {
     return (
-      <div className="min-h-[300px] flex flex-col items-center justify-center p-6 text-center space-y-3 font-sans text-xs bg-white rounded-3xl border border-slate-200 shadow-2xs">
-        <AlertCircle className="w-8 h-8 text-amber-500" />
-        <h2 className="text-base font-semibold text-slate-900">Course Content Unavailable</h2>
-        <p className="text-slate-500 font-normal">We could not locate the requested course details.</p>
-        <Link
-          to={academyUuid ? `/student/academies/${academyUuid}/courses` : '/student/academies'}
-          className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-xl"
-        >
-          Return to Course Catalog
-        </Link>
+      <div className="py-16 w-full min-h-[300px] flex items-center justify-center font-sans text-xs">
+        <div className="space-y-3 text-center">
+          <div className="w-8 h-8 border-3 border-[var(--brand-primary,#2563EB)] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-[var(--text-muted)] font-medium">Loading Course Player...</p>
+        </div>
       </div>
     );
   }
 
-  // Guarantee NO empty state for demo route!
-  if (!activeLesson || orderedLessons.length === 0) {
+  if (error) {
     return (
-      <div className="min-h-[300px] flex flex-col items-center justify-center p-6 text-center space-y-3 font-sans text-xs bg-white rounded-3xl border border-slate-200 shadow-2xs">
-        <Inbox className="w-8 h-8 text-slate-400" />
-        <h2 className="text-base font-semibold text-slate-900">Course Lessons Unavailable</h2>
-        <p className="text-slate-500 font-normal text-[11px]">This course currently has no published lesson content.</p>
-        <Link
-          to={`/student/academies/${academyUuid}/courses/${courseUuid}/overview`}
-          className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-xl"
-        >
-          Return to Course Overview
-        </Link>
+      <div className="py-8 w-full min-h-[300px] flex items-center justify-center">
+        <StudentStateCard
+          variant="error"
+          title="Unable to Load Course Player"
+          description={error || 'We could not load course details right now.'}
+          actionLabel="Back to Course Overview"
+          actionPath={
+            academyUuid && courseUuid
+              ? `/student/academies/${academyUuid}/courses/${courseUuid}/overview`
+              : '/student/academies'
+          }
+        />
       </div>
     );
   }
 
-  const isCompleted =
-    Array.isArray(completedLessonIds) &&
-    (completedLessonIds.includes(activeLesson.id) ||
-      completedLessonIds.includes(`les-${activeLesson.title.split(' ')[0]}`));
+  if (allLessons.length === 0 || !selectedLessonSummary) {
+    return (
+      <div className="py-8 w-full min-h-[300px] flex items-center justify-center">
+        <StudentStateCard
+          variant="empty"
+          title="Course Content Not Published Yet"
+          description="This course does not currently contain published lessons."
+          actionLabel="Back to Course Overview"
+          actionPath={`/student/academies/${academyUuid}/courses/${courseUuid}/overview`}
+        />
+      </div>
+    );
+  }
+
+  const activeLessonObj = selectedLessonDetail || selectedLessonSummary;
+
+  const courseLessonObj = {
+    id: activeLessonObj.id || activeLessonObj.uuid,
+    uuid: activeLessonObj.uuid || activeLessonObj.id,
+    title: activeLessonObj.title || selectedLessonSummary.title,
+    description: activeLessonObj.description || activeLessonObj.content || selectedLessonSummary.description || '',
+    content: activeLessonObj.content || activeLessonObj.description,
+    lesson_type: activeLessonObj.lesson_type || selectedLessonSummary.lesson_type,
+    type: resolveLessonType(activeLessonObj),
+    duration: activeLessonObj.duration_minutes ? `${activeLessonObj.duration_minutes} min` : undefined,
+    durationMinutes: activeLessonObj.duration_minutes || 0,
+    mediaUrl: activeLessonObj.media_url || activeLessonObj.external_url || '',
+    externalUrl: activeLessonObj.external_url || '',
+    allowDownload: activeLessonObj.allow_download ?? true,
+    quiz: activeLessonObj.quiz,
+    assignment: activeLessonObj.assignment,
+    resources: activeLessonObj.resources || [],
+  };
+
+  const isCurrentLessonCompleted = Boolean(activeLessonObj.completed || activeLessonObj.is_completed);
+
+  // Compute unlock access map for sidebar
+  const courseStoreModules: any[] = modules.map((m) => ({
+    id: m.id,
+    title: m.title,
+    duration: '',
+    lessonsCount: m.lessons.length,
+    lessons: m.lessons.map((l) => ({
+      id: l.id,
+      title: l.title,
+      duration: l.duration_minutes ? `${l.duration_minutes} min` : '',
+      type: resolveLessonType(l),
+      isUnlocked: l.unlocked ?? true,
+      unlocked: l.unlocked ?? true,
+      completed: Boolean(l.completed || l.is_completed),
+      lock_reason: l.lock_reason,
+      required_lesson: l.required_lesson,
+    })),
+  }));
+
+  const accessMap = calculateLessonAccessMap({
+    course: { modules: courseStoreModules } as any,
+    enrollment,
+  });
+
+  const isSelectedLocked = lessonLockError?.isLocked || selectedLessonSummary?.unlocked === false;
 
   return (
-    <div className="pb-12 hide-scrollbar font-sans text-xs max-w-7xl mx-auto space-y-4">
+    <div className="pb-12 hide-scrollbar font-sans text-xs max-w-7xl mx-auto space-y-4 text-left">
       {/* MOBILE TOP BAR FOR CURRICULUM DRAWER TOGGLE */}
-      <div className="flex lg:hidden items-center justify-between p-3.5 bg-white border border-slate-200/80 rounded-2xl shadow-2xs">
+      <div className="flex lg:hidden items-center justify-between p-3.5 bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xs">
         <div className="flex items-center gap-2 min-w-0">
-          <Layers className="w-4 h-4 text-blue-600 shrink-0" />
-          <span className="font-semibold text-xs text-slate-900 truncate">
-            {activeLesson.title}
+          <Layers className="w-4 h-4 text-[var(--brand-primary,#2563EB)] shrink-0" />
+          <span className="font-semibold text-xs text-[var(--text-primary)] truncate">
+            {selectedLessonSummary.title}
           </span>
         </div>
 
@@ -227,8 +242,8 @@ export const LessonPlayerPage: React.FC = () => {
           size="sm"
           variant="outline"
           onClick={() => setMobileDrawerOpen(true)}
-          leftIcon={<ListTree className="w-4 h-4 text-blue-600 shrink-0" />}
-          className="font-semibold px-3 min-h-[38px] border-slate-200 text-slate-800 shrink-0 cursor-pointer"
+          leftIcon={<ListTree className="w-4 h-4 text-[var(--brand-primary,#2563EB)] shrink-0" />}
+          className="font-semibold px-3 min-h-[38px] border-[var(--border)] text-[var(--text-primary)] shrink-0 cursor-pointer"
         >
           Curriculum
         </Button>
@@ -237,45 +252,75 @@ export const LessonPlayerPage: React.FC = () => {
       {/* RESPONSIVE LAYOUT CONTAINER */}
       <div className="lg:flex lg:gap-6 lg:items-start">
         {/* MAIN LESSON PLAYER AREA */}
-        <div className="flex-1 min-w-0">
-          <UnifiedLessonPlayer
-            lesson={activeLesson}
-            moduleTitle={moduleTitle}
-            academyUuid={academyUuid || '550e8400-e29b-41d4-a716-446655440000'}
-            courseUuid={courseUuid || '9c78bda1-98c2-4b11-8b81-92d3db12b501'}
-            enrollment={enrollment}
-            isCompleted={isCompleted}
-            canAccess={canAccess}
-            lockReason={lockReason}
-            onMarkComplete={handleMarkComplete}
-            prevLessonId={prevLessonId}
-            nextLessonId={nextLessonId}
-            onNavigateLesson={handleNavigateLesson}
-          />
+        <div className="flex-1 min-w-0 space-y-4">
+          {isLoadingDetail ? (
+            <div className="w-full aspect-video rounded-2xl bg-[var(--surface)] border border-[var(--border)] p-6 flex flex-col items-center justify-center space-y-3">
+              <div className="w-8 h-8 border-3 border-[var(--brand-primary,#2563EB)] border-t-transparent rounded-full animate-spin" />
+              <p className="text-[var(--text-muted)] font-medium text-xs">Loading unit details...</p>
+            </div>
+          ) : isSelectedLocked ? (
+            <div className="w-full aspect-video rounded-2xl bg-[var(--surface)] border border-[var(--border)] p-8 flex flex-col items-center justify-center text-center space-y-4 shadow-xs">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
+                <Lock className="w-7 h-7" />
+              </div>
+              <div className="space-y-1.5 max-w-md">
+                <h2 className="text-base font-bold text-[var(--text-primary)]">Lesson Locked</h2>
+                <p className="text-xs text-[var(--text-muted)]">
+                  {lessonLockError?.message || 'Complete the previous lesson to unlock this lesson.'}
+                </p>
+                {lessonLockError?.requiredLesson && (
+                  <p className="text-xs font-semibold text-[var(--brand-primary,#2563EB)] pt-1">
+                    Prerequisite: "{lessonLockError.requiredLesson.title}"
+                  </p>
+                )}
+              </div>
+              {lessonLockError?.requiredLesson?.id && (
+                <Button
+                  size="sm"
+                  onClick={() => handleNavigateLesson(lessonLockError.requiredLesson.id)}
+                  className="bg-[var(--brand-primary,#2563EB)] text-white hover:bg-[var(--brand-primary-hover)] font-semibold cursor-pointer"
+                >
+                  Go to Required Lesson
+                </Button>
+              )}
+            </div>
+          ) : (
+            <UnifiedLessonPlayer
+              lesson={courseLessonObj as any}
+              moduleTitle={selectedLessonSummary.moduleTitle}
+              academyUuid={academyUuid!}
+              courseUuid={courseUuid!}
+              enrollment={enrollment}
+              isCompleted={isCurrentLessonCompleted}
+              canAccess={true}
+              onMarkComplete={handleMarkComplete}
+              prevLessonId={prevLessonId}
+              nextLessonId={nextLessonId}
+              onNavigateLesson={handleNavigateLesson}
+            />
+          )}
         </div>
 
-        {/* DESKTOP SIDEBAR PANEL */}
-        <div className="hidden lg:block w-80 shrink-0 sticky top-6">
+        {/* DESKTOP CURRICULUM SIDEBAR */}
+        <div className="hidden lg:block w-80 shrink-0 sticky top-20">
           <LessonSidebar
-            modules={course.modules || []}
-            activeLessonId={activeLesson.id}
+            modules={courseStoreModules}
+            activeLessonId={String(selectedLessonSummary.id)}
             accessMap={accessMap}
             onSelectLesson={handleNavigateLesson}
-            onResetProgress={isDemo ? handleResetDemoProgress : undefined}
           />
         </div>
       </div>
 
       {/* MOBILE CURRICULUM DRAWER MODAL */}
       {mobileDrawerOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex justify-end lg:hidden font-sans">
-          <div className="w-full max-w-sm bg-white h-full overflow-y-auto p-4 space-y-4 animate-in slide-in-from-right duration-200">
+        <div className="fixed inset-0 z-50 bg-[#0F172A]/70 backdrop-blur-xs lg:hidden flex justify-end">
+          <div className="w-full max-w-xs h-full bg-[var(--surface)] p-4 overflow-y-auto shadow-2xl">
             <LessonSidebar
-              modules={course.modules || []}
-              activeLessonId={activeLesson.id}
+              modules={courseStoreModules}
+              activeLessonId={String(selectedLessonSummary.id)}
               accessMap={accessMap}
               onSelectLesson={handleNavigateLesson}
-              onResetProgress={isDemo ? handleResetDemoProgress : undefined}
               isMobileDrawer={true}
               onCloseDrawer={() => setMobileDrawerOpen(false)}
             />

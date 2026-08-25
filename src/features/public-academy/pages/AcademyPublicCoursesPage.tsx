@@ -1,237 +1,313 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { Star, Users, Search, BookOpen, Filter, ChevronDown } from 'lucide-react';
-import { AcademyHeader } from '../../../components/layout/AcademyHeader';
-import { AcademyFooter } from '../../../components/layout/AcademyFooter';
-import { useAcademyStore } from '../../../stores/academy.store';
-import { useCourseStore } from '../../../stores/course.store';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Search, BookOpen, Filter, ChevronDown, ArrowRight } from 'lucide-react';
+import { usePublicAcademy } from '../layouts/PublicAcademyLayout';
+import { studentPortalService } from '../../../services/studentPortal.service';
+import { resolveMediaUrl } from '../../../services/apiClient';
+import { useAuthStore } from '../../auth/store/auth.store';
+import { saveCheckoutIntent, buildLoginUrl, setLastAcademy } from '../../../lib/navigationIntent';
+import { CoursePrice } from '../../../components/common/CoursePrice';
 
 export const AcademyPublicCoursesPage: React.FC = () => {
-  const { academyUuid } = useParams<{ academyUuid: string }>();
-  const getAcademyByUuid = useAcademyStore((state) => state.getAcademyByUuid);
-  const loadAcademyThemeByUuid = useAcademyStore((state) => state.loadAcademyThemeByUuid);
-  const getCoursesByAcademy = useCourseStore((state) => state.getCoursesByAcademy);
+  const navigate = useNavigate();
+  const { academyUuid: paramUuid } = useParams<{ academyUuid: string }>();
+  const context = usePublicAcademy();
+
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const academyUuid = context?.academyUuid || paramUuid || '';
+
+  const [localCourses, setLocalCourses] = useState<any[]>([]);
+  const [localData, setLocalData] = useState<any>(null);
 
   useEffect(() => {
     if (academyUuid) {
-      loadAcademyThemeByUuid(academyUuid);
+      setLastAcademy(academyUuid);
     }
-  }, [academyUuid, loadAcademyThemeByUuid]);
+  }, [academyUuid]);
 
-  const academy = getAcademyByUuid(academyUuid || '');
-  const courses = getCoursesByAcademy(academyUuid || '');
+  useEffect(() => {
+    if (context) return;
+    let isMounted = true;
+    async function loadData() {
+      if (!academyUuid) return;
+      const courses = await studentPortalService.getPublicAcademyCourses(academyUuid);
+      const website = await studentPortalService.getPublicAcademyWebsite(academyUuid);
+      if (isMounted) {
+        setLocalCourses(courses || []);
+        setLocalData(website);
+      }
+    }
+    loadData();
+    return () => { isMounted = false; };
+  }, [context, academyUuid]);
+
+  const publicCourses = context?.publicCourses || localCourses || [];
+  const academyEntity = context?.academyEntity || {
+    name: localData?.academy?.name || 'Academy',
+    theme: { primaryColor: localData?.theme?.primary_color || '#2563EB' },
+  };
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedLevel, setSelectedLevel] = useState<string>('All');
 
+  const [userEnrollments, setUserEnrollments] = useState<any[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (isAuthenticated) {
+      studentPortalService.getStudentEnrollments().then((list) => {
+        if (isMounted) setUserEnrollments(list || []);
+      });
+    } else {
+      setUserEnrollments([]);
+    }
+    return () => { isMounted = false; };
+  }, [isAuthenticated]);
+
+  const enrolledCourseUuids = useMemo(() => {
+    const set = new Set<string>();
+    userEnrollments.forEach((e: any) => {
+      if (e.status === 'ACTIVE' || e.status === 'COMPLETED' || e.status === 'active') {
+        const id = e.course?.uuid || e.course?.id || e.course_uuid || e.course_id;
+        if (id) set.add(String(id));
+      }
+    });
+    return set;
+  }, [userEnrollments]);
+
   const categories = useMemo(() => {
     const set = new Set<string>();
-    courses.forEach((c) => {
+    publicCourses.forEach((c) => {
       if (c.category) set.add(c.category);
     });
     return ['All', ...Array.from(set)];
-  }, [courses]);
+  }, [publicCourses]);
 
   const filteredCourses = useMemo(() => {
-    return courses.filter((c) => {
+    return publicCourses.filter((c) => {
       const matchSearch =
-        c.title.toLowerCase().includes(search.toLowerCase()) ||
-        (c.subtitle && c.subtitle.toLowerCase().includes(search.toLowerCase()));
+        (c.title || '').toLowerCase().includes(search.toLowerCase()) ||
+        (c.short_description || c.description || '').toLowerCase().includes(search.toLowerCase());
       const matchCat = selectedCategory === 'All' || c.category === selectedCategory;
       const matchLevel = selectedLevel === 'All' || c.level === selectedLevel;
       return matchSearch && matchCat && matchLevel;
     });
-  }, [courses, search, selectedCategory, selectedLevel]);
+  }, [publicCourses, search, selectedCategory, selectedLevel]);
 
-  if (!academy) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4 font-sans text-xs bg-[#F8FAFC]">
-        <h1 className="text-2xl font-bold text-slate-900">Academy Not Found</h1>
-        <p className="text-slate-500">The requested academy UUID does not exist or has been removed.</p>
-        <Link to="/" className="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold">
-          Return to Portal
-        </Link>
-      </div>
-    );
-  }
+  const handleEnrollClick = (course: any) => {
+    const targetCourseUuid = course.uuid || course.id || course.slug;
+    if (!targetCourseUuid || !academyUuid) return;
 
-  const primaryStyle = { backgroundColor: academy.theme.primaryColor };
+    const isEnrolled = enrolledCourseUuids.has(String(targetCourseUuid)) || enrolledCourseUuids.has(String(course.id));
+    if (isEnrolled) {
+      navigate(`/student/academies/${academyUuid}/courses/${targetCourseUuid}/overview`);
+      return;
+    }
+
+    const checkoutPath = `/${academyUuid}/checkout/${targetCourseUuid}`;
+
+    if (isAuthenticated) {
+      navigate(checkoutPath);
+    } else {
+      saveCheckoutIntent({ academyUuid, courseUuid: targetCourseUuid });
+      navigate(buildLoginUrl(academyUuid, checkoutPath));
+    }
+  };
+
+  const primaryStyle = { backgroundColor: academyEntity.theme?.primaryColor || '#2563EB' };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8FAFC] font-sans text-xs text-slate-900">
-      <AcademyHeader academy={academy} />
+    <div className="py-8 md:py-12 px-4 md:px-6 max-w-7xl mx-auto space-y-8 w-full min-w-0 font-sans">
+      {/* COURSES HEADER */}
+      <div className="space-y-1.5 text-left">
+        <h1 className="text-2xl sm:text-3xl font-semibold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight">
+          Explore Courses
+        </h1>
+        <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#94A3B8] font-normal">
+          Discover courses designed to help you learn and grow under {academyEntity.name}.
+        </p>
+      </div>
 
-      <main className="flex-1 py-12 px-4 md:px-6 max-w-7xl mx-auto space-y-8 w-full">
-        <div className="space-y-2 text-left">
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Course Catalog</h1>
-          <p className="text-slate-600 text-xs font-normal">
-            Explore all official courses offered by {academy.name}.
+      {/* SEARCH & FILTER BAR */}
+      <div className="bg-white dark:bg-[#111827] p-4 sm:p-6 rounded-[14px] border border-[#E2E8F0] dark:border-[#263244] shadow-2xs space-y-4 text-left">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center font-bold bg-blue-50 dark:bg-[rgba(37,99,235,0.12)] text-[#2563EB] dark:text-[#60A5FA]">
+              <Filter className="w-3.5 h-3.5" />
+            </div>
+            <span className="font-semibold text-xs sm:text-sm text-[#0F172A] dark:text-[#F8FAFC]">Filter &amp; Search</span>
+          </div>
+          <span className="text-xs text-[#64748B] dark:text-[#94A3B8] font-medium">
+            Showing <span className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">{filteredCourses.length}</span> of {publicCourses.length} courses
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          {/* SEARCH INPUT */}
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-[#475569] dark:text-[#CBD5E1] select-none">
+              Search Catalog
+            </label>
+            <div className="relative flex items-center">
+              <div className="absolute left-3 text-slate-400 dark:text-[#94A3B8] pointer-events-none flex items-center justify-center">
+                <Search className="w-4 h-4" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search title or keyword..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full h-11 rounded-xl border border-[#CBD5E1] dark:border-[#334155] pl-9 pr-3 text-xs font-medium text-[#0F172A] dark:text-[#F8FAFC] placeholder:text-[#64748B] dark:placeholder:text-[#94A3B8] bg-white dark:bg-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/10"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2 px-2 py-0.5 text-[10px] font-semibold text-slate-400 hover:text-slate-700 dark:hover:text-[#F8FAFC] rounded bg-slate-100 dark:bg-[#263244]"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* CATEGORY DROPDOWN */}
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-[#475569] dark:text-[#CBD5E1] select-none">
+              Category
+            </label>
+            <div className="relative flex items-center">
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full h-11 rounded-xl border border-[#CBD5E1] dark:border-[#334155] px-3.5 text-xs font-medium text-[#0F172A] dark:text-[#F8FAFC] bg-white dark:bg-[#111827] appearance-none cursor-pointer pr-9 focus:outline-none"
+              >
+                {categories.map((cat) => (
+                  <option key={cat} value={cat} className="bg-white dark:bg-[#111827] text-[#0F172A] dark:text-[#F8FAFC]">
+                    {cat === 'All' ? 'All Categories' : cat}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-3 pointer-events-none text-slate-400 dark:text-[#94A3B8] flex items-center justify-center">
+                <ChevronDown className="w-4 h-4" />
+              </div>
+            </div>
+          </div>
+
+          {/* SKILL LEVEL DROPDOWN */}
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-[#475569] dark:text-[#CBD5E1] select-none">
+              Skill Level
+            </label>
+            <div className="relative flex items-center">
+              <select
+                value={selectedLevel}
+                onChange={(e) => setSelectedLevel(e.target.value)}
+                className="w-full h-11 rounded-xl border border-[#CBD5E1] dark:border-[#334155] px-3.5 text-xs font-medium text-[#0F172A] dark:text-[#F8FAFC] bg-white dark:bg-[#111827] appearance-none cursor-pointer pr-9 focus:outline-none"
+              >
+                <option value="All" className="bg-white dark:bg-[#111827] text-[#0F172A] dark:text-[#F8FAFC]">All Skill Levels</option>
+                <option value="Beginner" className="bg-white dark:bg-[#111827] text-[#0F172A] dark:text-[#F8FAFC]">Beginner</option>
+                <option value="Intermediate" className="bg-white dark:bg-[#111827] text-[#0F172A] dark:text-[#F8FAFC]">Intermediate</option>
+                <option value="Advanced" className="bg-white dark:bg-[#111827] text-[#0F172A] dark:text-[#F8FAFC]">Advanced</option>
+              </select>
+              <div className="absolute right-3 pointer-events-none text-slate-400 dark:text-[#94A3B8] flex items-center justify-center">
+                <ChevronDown className="w-4 h-4" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* COURSES GRID / EMPTY STATE */}
+      {filteredCourses.length === 0 ? (
+        <div className="bg-white dark:bg-[#111827] p-8 md:p-12 rounded-[14px] border border-[#E2E8F0] dark:border-[#263244] text-center space-y-2">
+          <BookOpen className="w-10 h-10 text-[#64748B] dark:text-[#94A3B8] mx-auto" />
+          <h3 className="text-base font-semibold text-[#0F172A] dark:text-[#F8FAFC]">No Courses Match Your Filter</h3>
+          <p className="text-xs text-[#64748B] dark:text-[#94A3B8] font-normal max-w-sm mx-auto">
+            {publicCourses.length === 0
+              ? 'This academy has not published any public courses yet.'
+              : 'Try clearing search keywords or selecting a different category filter.'}
           </p>
         </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredCourses.map((course) => {
+            const targetId = String(course.uuid || course.id || '');
+            const isEnrolled = enrolledCourseUuids.has(targetId) || enrolledCourseUuids.has(String(course.id));
+            const isFree = course.price === 0 || course.is_free;
 
-        {/* SEARCH & FILTER BAR */}
-        <div className="bg-white p-5 md:p-7 rounded-[24px] border border-slate-200/90 shadow-md shadow-slate-200/40 space-y-4 text-left">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            return (
               <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center font-bold"
-                style={{ backgroundColor: academy.theme.primarySoft, color: academy.theme.primaryColor }}
-              >
-                <Filter className="w-4 h-4" />
-              </div>
-              <span className="font-extrabold text-sm text-slate-900">Filter &amp; Search Courses</span>
-            </div>
-            <span className="text-xs text-slate-500 font-medium">
-              Showing <span className="font-bold text-slate-900">{filteredCourses.length}</span> of {courses.length} courses
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-end">
-            {/* SEARCH */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-900 select-none">
-                Search Catalog
-              </label>
-              <div className="relative flex items-center">
-                <div className="absolute left-4 text-slate-400 pointer-events-none flex items-center justify-center">
-                  <Search className="w-4 h-4" />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Search title, topic, or keyword..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full h-[52px] min-h-[52px] rounded-[16px] border border-slate-200/90 pl-11 pr-4 text-sm font-medium text-slate-900 placeholder:text-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-                {search && (
-                  <button
-                    type="button"
-                    onClick={() => setSearch('')}
-                    className="absolute right-3 px-2 py-1 text-[11px] font-semibold text-slate-400 hover:text-slate-700 rounded-md bg-slate-100 hover:bg-slate-200"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* CATEGORY */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-900 select-none">
-                Category
-              </label>
-              <div className="relative flex items-center">
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full h-[52px] min-h-[52px] rounded-[16px] border border-slate-200/90 px-4 text-sm font-medium text-slate-900 bg-white appearance-none cursor-pointer pr-10 focus:outline-none"
-                >
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat === 'All' ? 'All Categories' : cat}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-4 pointer-events-none text-slate-400 flex items-center justify-center">
-                  <ChevronDown className="w-4 h-4" />
-                </div>
-              </div>
-            </div>
-
-            {/* SKILL LEVEL */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-900 select-none">
-                Skill Level
-              </label>
-              <div className="relative flex items-center">
-                <select
-                  value={selectedLevel}
-                  onChange={(e) => setSelectedLevel(e.target.value)}
-                  className="w-full h-[52px] min-h-[52px] rounded-[16px] border border-slate-200/90 px-4 text-sm font-medium text-slate-900 bg-white appearance-none cursor-pointer pr-10 focus:outline-none"
-                >
-                  <option value="All">All Skill Levels</option>
-                  <option value="Beginner">Beginner</option>
-                  <option value="Intermediate">Intermediate</option>
-                  <option value="Advanced">Advanced</option>
-                </select>
-                <div className="absolute right-4 pointer-events-none text-slate-400 flex items-center justify-center">
-                  <ChevronDown className="w-4 h-4" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* COURSES LIST */}
-        {filteredCourses.length === 0 ? (
-          <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
-            <BookOpen className="w-10 h-10 text-slate-300 mx-auto" />
-            <h3 className="text-base font-bold text-slate-900">No Courses Match Your Filter</h3>
-            <p className="text-slate-500 text-xs">Try clearing search keywords or selecting a different category.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCourses.map((course) => (
-              <div
-                key={course.uuid}
-                className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+                key={course.id || course.slug}
+                className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#263244] rounded-[12px] overflow-hidden shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between w-full min-w-0 max-w-full"
               >
                 <div>
-                  <div className="relative aspect-video overflow-hidden bg-slate-100">
-                    <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
+                  <div className="relative aspect-video w-full overflow-hidden bg-slate-100 dark:bg-[#0F172A]">
+                    {course.thumbnail ? (
+                      <img src={resolveMediaUrl(course.thumbnail)} alt={course.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-blue-50 dark:bg-[#172033] text-[#2563EB] dark:text-[#60A5FA]">
+                        <BookOpen className="w-10 h-10" />
+                      </div>
+                    )}
                     {course.category && (
-                      <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/80 text-white backdrop-blur-xs">
+                      <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#0F172A]/80 text-white backdrop-blur-xs">
                         {course.category}
+                      </span>
+                    )}
+                    {isEnrolled && (
+                      <span className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-600 text-white shadow-xs">
+                        ✓ Already Enrolled
                       </span>
                     )}
                   </div>
 
-                  <div className="p-5 space-y-3">
+                  <div className="p-4 space-y-2.5 text-left">
                     <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5 text-amber-500 font-bold">
-                        <Star className="w-4 h-4 fill-current" />
-                        <span>{course.rating || 4.9}</span>
-                        <span className="text-slate-400 font-normal">({course.reviewsCount || 120})</span>
-                      </div>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
-                        {course.level}
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-[#172033] text-[#475569] dark:text-[#CBD5E1]">
+                        {course.level || 'Masterclass'}
                       </span>
+                      <CoursePrice course={course} size="sm" showDiscountBadge />
                     </div>
 
-                    <h3 className="font-bold text-sm text-slate-900 line-clamp-2">{course.title}</h3>
-                    <p className="text-slate-500 text-xs line-clamp-2">{course.subtitle || course.currentModuleTitle}</p>
-
-                    <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100 text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3.5 h-3.5" />
-                        {course.studentCount || 850} students
-                      </span>
-                      <span className="font-bold text-slate-900 text-sm">
-                        {course.price === 0 ? 'FREE' : `${course.currency || '₹'}${course.price || 4999}`}
-                      </span>
-                    </div>
+                    <h3 className="font-semibold text-sm text-[#0F172A] dark:text-[#F8FAFC] leading-snug break-words">
+                      {course.title}
+                    </h3>
+                    <p className="text-[#64748B] dark:text-[#94A3B8] text-xs line-clamp-2 font-normal leading-relaxed">
+                      {course.short_description || course.description}
+                    </p>
                   </div>
                 </div>
 
-                <div className="p-5 pt-0">
-                  <Link to={`/${academyUuid}/courses/${course.uuid}`}>
+                <div className="p-4 pt-0">
+                  {isEnrolled ? (
                     <button
                       type="button"
+                      onClick={() => handleEnrollClick(course)}
                       style={primaryStyle}
-                      className="w-full font-semibold text-white py-2.5 rounded-xl flex items-center justify-center gap-2"
+                      className="w-full font-semibold text-white py-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-[42px] hover:opacity-95 transition-opacity"
                     >
-                      View Course Details
+                      <span>Continue Learning</span>
+                      <ArrowRight className="w-4 h-4" />
                     </button>
-                  </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleEnrollClick(course)}
+                      style={primaryStyle}
+                      className="w-full font-semibold text-white py-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-[42px] hover:opacity-95 transition-opacity"
+                    >
+                      <span>{isFree ? 'Enroll for Free' : 'Enroll in Course'}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </main>
-
-      <AcademyFooter academy={academy} />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

@@ -1,32 +1,35 @@
+import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { LoginPage } from './features/auth/pages/LoginPage';
 import { AcademyLoginPage } from './features/auth/pages/AcademyLoginPage';
 import { StudentRegisterPage } from './features/auth/pages/StudentRegisterPage';
+import { VerifyEmailPage } from './features/auth/pages/VerifyEmailPage';
 import { ForgotPasswordPage } from './features/auth/pages/ForgotPasswordPage';
 import { SetupPasswordPage } from './features/auth/pages/SetupPasswordPage';
+import { ResetPasswordPage } from './features/auth/pages/ResetPasswordPage';
 
 import { AuthGuard } from './features/auth/components/AuthGuard';
 import { GuestGuard } from './features/auth/components/GuestGuard';
 import { AcademyEnrollmentGuard } from './features/auth/components/AcademyEnrollmentGuard';
 import { CourseEnrollmentGuard } from './features/auth/components/CourseEnrollmentGuard';
 
+import { PublicAcademyLayout } from './features/public-academy/layouts/PublicAcademyLayout';
 import { AcademyHomePage } from './features/public-academy/pages/AcademyHomePage';
 import { AcademyPublicCoursesPage } from './features/public-academy/pages/AcademyPublicCoursesPage';
 import { CourseDetailPage } from './features/public-academy/pages/CourseDetailPage';
 import { AcademyContactPage } from './features/public-academy/pages/AcademyContactPage';
+import { CheckoutPage } from './features/checkout/pages/CheckoutPage';
 
 import { MyAcademiesPage } from './features/academies/pages/MyAcademiesPage';
 import { AcademyCoursesPage } from './features/academies/pages/AcademyCoursesPage';
+import { StudentDashboardPage } from './features/academies/pages/StudentDashboardPage';
 import { StudentPortalLayout } from './components/layout/StudentPortalLayout';
 
 import { OverviewPage } from './features/learning/pages/OverviewPage';
 import { LessonPlayerPage } from './features/learning/pages/LessonPlayerPage';
 import { CurriculumPage } from './features/curriculum/pages/CurriculumPage';
-import { AssignmentsPage } from './features/assignments/pages/AssignmentsPage';
-import { QuizzesPage } from './features/quizzes/pages/QuizzesPage';
 import { LiveClassesPage } from './features/live-classes/pages/LiveClassesPage';
 import { CertificatesPage } from './features/certificates/pages/CertificatesPage';
-import { VerifyCertificatePage } from './features/certificates/pages/VerifyCertificatePage';
 import { NotificationsPage } from './features/notifications/pages/NotificationsPage';
 import { DiscussionsPage } from './features/discussions/pages/DiscussionsPage';
 import { PersonalChatPage } from './features/personal-chat/pages/PersonalChatPage';
@@ -39,20 +42,25 @@ import { ServerErrorPage } from './features/error-pages/ServerErrorPage';
 import { NetworkErrorPage } from './features/error-pages/NetworkErrorPage';
 
 import { StudentRouteErrorBoundary } from './features/error-pages/StudentRouteErrorBoundary';
+import { getLastAcademy } from './lib/navigationIntent';
+
+const RootAppRedirect: React.FC = () => {
+  const lastAcademy = getLastAcademy();
+  if (lastAcademy) {
+    return <Navigate to={`/${lastAcademy}`} replace />;
+  }
+  return <Navigate to="/student/academies" replace />;
+};
 
 export const router = createBrowserRouter([
-  // DEFAULT REDIRECT TO DEFAULT PUBLIC ACADEMY
+  // DEFAULT ROOT REDIRECT TO LAST ACADEMY OR MY ACADEMIES
   {
     path: '/',
-    element: <Navigate to="/550e8400-e29b-41d4-a716-446655440000" replace />,
+    element: <RootAppRedirect />,
   },
   {
     path: '/login',
-    element: (
-      <GuestGuard>
-        <LoginPage />
-      </GuestGuard>
-    ),
+    element: <RootAppRedirect />,
   },
   {
     path: '/forgot-password',
@@ -72,7 +80,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/register',
-    element: <Navigate to="/login" replace />,
+    element: <RootAppRedirect />,
   },
 
   // GLOBAL ACADEMY FALLBACK / MANUAL SWITCHING
@@ -95,6 +103,14 @@ export const router = createBrowserRouter([
       </AuthGuard>
     ),
     children: [
+      {
+        index: true,
+        element: <StudentDashboardPage />,
+      },
+      {
+        path: 'dashboard',
+        element: <StudentDashboardPage />,
+      },
       {
         path: 'courses',
         element: <AcademyCoursesPage />,
@@ -132,45 +148,77 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // PUBLIC ACADEMY WEBSITE ROUTES
+  // PUBLIC ACADEMY WEBSITE & DASHBOARD ROUTER (ALL AUTH ROUTES SCOPED UNDER ACADEMY UUID)
   {
     path: '/:academyUuid',
-    element: <AcademyHomePage />,
-  },
-  {
-    path: '/:academyUuid/courses',
-    element: <AcademyPublicCoursesPage />,
-  },
-  {
-    path: '/:academyUuid/courses/:courseUuid',
-    element: <CourseDetailPage />,
-  },
-  {
-    path: '/:academyUuid/login',
-    element: (
-      <GuestGuard>
-        <AcademyLoginPage />
-      </GuestGuard>
-    ),
-  },
-  {
-    path: '/:academyUuid/register',
-    element: (
-      <GuestGuard>
-        <StudentRegisterPage />
-      </GuestGuard>
-    ),
-  },
-  {
-    path: '/:academyUuid/contact',
-    element: <AcademyContactPage />,
+    element: <PublicAcademyLayout />,
+    children: [
+      {
+        index: true,
+        element: <AcademyHomePage />,
+      },
+      {
+        path: 'courses',
+        element: <AcademyPublicCoursesPage />,
+      },
+      {
+        path: 'courses/:courseUuid',
+        element: <CourseDetailPage />,
+      },
+      {
+        path: 'courses/:courseUuid/overview',
+        element: (
+          <Navigate to={`/student/academies/${window.location.pathname.split('/')[1]}/courses/${window.location.pathname.split('/')[3]}/overview`} replace />
+        ),
+      },
+      {
+        path: 'checkout/:courseUuid',
+        element: (
+          <AuthGuard>
+            <CheckoutPage />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: 'login',
+        element: (
+          <GuestGuard>
+            <AcademyLoginPage />
+          </GuestGuard>
+        ),
+      },
+      {
+        path: 'register',
+        element: (
+          <GuestGuard>
+            <StudentRegisterPage />
+          </GuestGuard>
+        ),
+      },
+      {
+        path: 'verify-email',
+        element: <VerifyEmailPage />,
+      },
+      {
+        path: 'forgot-password',
+        element: <ForgotPasswordPage />,
+      },
+      {
+        path: 'setup-password',
+        element: <SetupPasswordPage />,
+      },
+      {
+        path: 'reset-password',
+        element: <ResetPasswordPage />,
+      },
+      {
+        path: 'contact',
+        element: <AcademyContactPage />,
+      },
+    ],
   },
 
   // UTILITY ROUTES & ERROR PAGES
-  {
-    path: '/verify/certificate/:certificateUuid',
-    element: <VerifyCertificatePage />,
-  },
   {
     path: '/404',
     element: <NotFoundPage />,
@@ -196,4 +244,3 @@ export const router = createBrowserRouter([
     element: <NotFoundPage />,
   },
 ]);
-

@@ -44,52 +44,18 @@ interface LearningStoreState {
   setLastAccessedLessonUuid: (lessonId: string) => void;
   addAssignmentSubmission: (submission: Omit<AssignmentSubmission, 'id' | 'submittedAt' | 'status'>) => void;
   addQuizAttempt: (attempt: Omit<QuizAttempt, 'id' | 'attemptedAt'>) => void;
+  reset: () => void;
 }
 
 export const useLearningStore = create<LearningStoreState>()(
   persist(
     (set) => ({
-      completedLessonIds: ['les-1.1', 'les-1.2', 'les-1.3', 'les-2.1', 'mock-react19-introduction'],
-      watchPercentages: {
-        'les-1.4': 65,
-        'mock-react19-compiler': 45,
-      },
-      lastAccessedLessonUuid: 'mock-react19-compiler',
-
-      submissions: [
-        {
-          id: 'sub-1',
-          assignmentTitle: 'Build a Reactive State Store with Zustand',
-          submittedAt: '2026-08-04T10:30:00Z',
-          submissionType: 'file',
-          content: 'zustand_state_store.zip (2.4 MB)',
-          status: 'Approved',
-          gradeMarks: 95,
-          maxMarks: 100,
-          feedback: 'Excellent clean state architecture implementation with persist middleware.',
-        },
-      ],
-
-      quizAttempts: [
-        {
-          id: 'qa-1',
-          quizTitle: 'React 19 Server Components Architecture',
-          attemptedAt: '2026-08-02T14:15:00Z',
-          scorePercent: 90,
-          passed: true,
-        },
-      ],
-
-      certificates: [
-        {
-          uuid: '550e8400-e29b-41d4-a716-446655440000',
-          courseTitle: 'Full Stack React 19 & Cloud Architecture',
-          studentName: 'Alex Student',
-          issuedAt: '2026-08-05',
-          certificateNumber: 'CS-CERT-2026-98741',
-          verificationStatus: 'VERIFIED_OFFICIAL',
-        },
-      ],
+      completedLessonIds: [],
+      watchPercentages: {},
+      lastAccessedLessonUuid: '',
+      submissions: [],
+      quizAttempts: [],
+      certificates: [],
 
       markLessonComplete: (lessonId) => {
         set((state) => {
@@ -130,6 +96,18 @@ export const useLearningStore = create<LearningStoreState>()(
           attemptedAt: new Date().toISOString(),
         };
         set((state) => ({ quizAttempts: [newAttempt, ...state.quizAttempts] }));
+      },
+
+      reset: () => {
+        set({
+          completedLessonIds: [],
+          watchPercentages: {},
+          lastAccessedLessonUuid: '',
+          lastCompletedLessonUuid: '',
+          submissions: [],
+          quizAttempts: [],
+          certificates: [],
+        });
       },
     }),
     {

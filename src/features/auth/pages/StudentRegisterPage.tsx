@@ -3,10 +3,10 @@ import { useNavigate, useParams, useSearchParams, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Shield, CheckCircle2, ArrowRight, ArrowLeft, MailCheck, ExternalLink, Sparkles } from 'lucide-react';
-import { useAcademyStore } from '../../../stores/academy.store';
-import { useCourseStore } from '../../../stores/course.store';
-import { usePasswordTokenStore, type PasswordSetupToken } from '../../../stores/password-token.store';
+import { Mail, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { usePublicAcademy } from '../../public-academy/layouts/PublicAcademyLayout';
+import { authService, type RegisterStudentResponse } from '../services/auth.service';
+import { buildLoginUrl, setLastAcademy } from '../../../lib/navigationIntent';
 
 const registerSchema = z.object({
   fullName: z.string().trim().min(2, 'Full name must be at least 2 characters.'),
@@ -19,42 +19,28 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 export const StudentRegisterPage: React.FC = () => {
   const navigate = useNavigate();
-  const { academyUuid } = useParams<{ academyUuid: string }>();
-  const [searchParams] = useSearchParams();
-  const returnTo = searchParams.get('returnTo');
-  const courseUuid = searchParams.get('course');
-  const intent = (searchParams.get('intent') as 'demo' | 'full') || 'full';
+  const { academyUuid: paramUuid } = useParams<{ academyUuid: string }>();
+  const context = usePublicAcademy();
 
-  const getAcademyByUuid = useAcademyStore((state) => state.getAcademyByUuid);
-  const loadAcademyThemeByUuid = useAcademyStore((state) => state.loadAcademyThemeByUuid);
-  const getCourseByUuid = useCourseStore((state) => state.getCourseByUuid);
-  const createToken = usePasswordTokenStore((state) => state.createToken);
+  const academyUuid = context?.academyUuid || paramUuid || '';
+  const academyEntity = context?.academyEntity || {
+    name: 'Academy',
+    logoUrl: '',
+  };
+
+  const [searchParams] = useSearchParams();
+  const nextParam = searchParams.get('next');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [createdToken, setCreatedToken] = useState<PasswordSetupToken | null>(null);
+  const [isResending, setIsResending] = useState(false);
+  const [cooldown, setCooldown] = useState<number>(0);
 
-  useEffect(() => {
-    if (academyUuid) {
-      loadAcademyThemeByUuid(academyUuid);
-    }
-  }, [academyUuid, loadAcademyThemeByUuid]);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [resendMsg, setResendMsg] = useState<string | null>(null);
+  const [registerResult, setRegisterResult] = useState<RegisterStudentResponse | null>(null);
+  const [registeredEmail, setRegisteredEmail] = useState<string>('');
 
-  const academy = getAcademyByUuid(academyUuid || '');
-  const course = courseUuid ? getCourseByUuid(courseUuid) : undefined;
-
-  const backUrl = academyUuid
-    ? courseUuid
-      ? `/${academyUuid}/courses/${courseUuid}`
-      : `/${academyUuid}/courses`
-    : '/';
-
-  const loginUrl = academyUuid
-    ? `/${academyUuid}/login?${new URLSearchParams({
-        ...(courseUuid ? { course: courseUuid } : {}),
-        intent,
-        ...(returnTo ? { returnTo } : {}),
-      }).toString()}`
-    : '/login';
+  const loginUrl = buildLoginUrl(academyUuid, nextParam || undefined);
 
   const {
     register,
@@ -66,230 +52,245 @@ export const StudentRegisterPage: React.FC = () => {
       fullName: '',
       email: '',
       phone: '',
-      termsAccepted: true,
+      termsAccepted: false,
     },
   });
 
-  const handleFormError = () => {
-    const firstError = document.querySelector('.border-red-500, input:invalid');
-    if (firstError) {
-      firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  };
+  // Cooldown timer for Resend button
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   const handleFormSubmit = async (data: RegisterFormData) => {
     setIsSubmitting(true);
+    setErrorMsg(null);
+    const actualEmail = data.email.trim().toLowerCase();
 
-    const tokenObj = createToken({
-      email: data.email,
-      fullName: data.fullName,
-      phone: data.phone,
-      academyUuid: academyUuid || '',
-      courseUuid: courseUuid || undefined,
-      intent,
-    });
-
-    setIsSubmitting(false);
-    setCreatedToken(tokenObj);
+    try {
+      setRegisteredEmail(actualEmail);
+      const res = await authService.registerStudent({
+        academy_uuid: academyUuid,
+        full_name: data.fullName,
+        email: actualEmail,
+        phone: data.phone,
+        agree_to_terms: data.termsAccepted,
+      });
+      setRegisterResult(res);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || err.message || 'Registration failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  if (!academy) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4 font-sans text-xs bg-[#F8FAFC]">
-        <h1 className="text-2xl font-bold text-slate-900">Academy Not Found</h1>
-        <Link to="/" className="px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold">
-          Return to Portal
-        </Link>
-      </div>
-    );
-  }
+  const handleResendVerificationEmail = async () => {
+    if (isResending || cooldown > 0 || !registeredEmail) return;
 
-  const primaryStyle = { backgroundColor: academy.theme.primaryColor };
-  const setupUrl = createdToken ? `${window.location.origin}/setup-password?token=${createdToken.token}` : '';
+    setIsResending(true);
+    setResendMsg(null);
+    try {
+      const msg = await authService.resendVerificationEmail({
+        email: registeredEmail,
+        academy_uuid: academyUuid,
+      });
+      setResendMsg(msg);
+      setCooldown(60);
+    } catch {
+      setResendMsg('Unable to request a new verification email. Please try again.');
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-3 sm:p-4 font-sans text-slate-900">
-      <div className="w-full max-w-[460px] bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-100 text-left space-y-6">
-        {/* BACK TO COURSE BUTTON */}
-        <div className="flex items-center justify-between">
-          <Link
-            to={backUrl}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Course</span>
+    <div className="py-12 px-4 flex items-center justify-center font-sans min-h-[calc(100dvh-4rem)]">
+      <div className="w-full max-w-[520px] bg-white dark:bg-[#111827] rounded-[14px] p-6 sm:p-8 shadow-xl border border-[#E2E8F0] dark:border-[#263244] text-left space-y-6 min-w-0">
+        {/* BRANDING HEADER */}
+        <div className="text-center space-y-3">
+          <Link to={`/${academyUuid}`} className="inline-flex items-center gap-3 group">
+            {academyEntity.logoUrl ? (
+              <img
+                src={academyEntity.logoUrl}
+                alt={academyEntity.name}
+                className="w-11 h-11 rounded-full object-cover border border-[#E2E8F0] dark:border-[#263244] group-hover:scale-105 transition-transform"
+              />
+            ) : (
+              <div className="w-11 h-11 rounded-full bg-blue-50 dark:bg-[rgba(37,99,235,0.12)] text-[#2563EB] dark:text-[#60A5FA] font-semibold text-xs flex items-center justify-center">
+                {academyEntity.name.charAt(0)}
+              </div>
+            )}
+            <div className="text-left">
+              <span className="font-semibold text-base text-[#0F172A] dark:text-[#F8FAFC] block leading-tight">{academyEntity.name}</span>
+              <span className="text-[11px] text-[#64748B] dark:text-[#94A3B8] font-normal">Student Portal</span>
+            </div>
           </Link>
-          {intent === 'demo' && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-              <Sparkles className="w-3 h-3 fill-amber-500 text-amber-500" />
-              <span>Demo Registration</span>
-            </span>
+
+          {!registerResult && (
+            <div className="pt-2 space-y-1">
+              <h1 className="text-xl font-semibold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight">
+                Create Student Account
+              </h1>
+              <p className="text-xs text-[#64748B] dark:text-[#94A3B8] font-normal">
+                Register to join courses under {academyEntity.name}.
+              </p>
+            </div>
           )}
         </div>
 
-        {/* BRANDING HEADER */}
-        <div className="text-center space-y-3">
-          <Link to={`/${academy.uuid}`} className="inline-flex items-center gap-3 group">
-            <img
-              src={academy.logoUrl}
-              alt={academy.name}
-              className="w-12 h-12 rounded-2xl object-cover border border-slate-200 shadow-xs group-hover:scale-105 transition-transform"
-            />
-            <div className="text-left">
-              <span className="font-extrabold text-base text-slate-900 block leading-tight">{academy.name}</span>
-              <span className="text-[11px] text-slate-500 font-medium">Global Student Registration</span>
-            </div>
-          </Link>
-
-          <div className="pt-2 space-y-1">
-            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-              {intent === 'demo' ? 'Register for Free Demo Access' : 'Create Student Account'}
-            </h1>
-            {course ? (
-              <div className="p-2.5 rounded-xl bg-blue-50 text-blue-900 text-xs font-semibold flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
-                <span className="truncate">Course: {course.title}</span>
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500">
-                Register once with your Global Student Identity under {academy.name}.
-              </p>
-            )}
+        {/* ERROR ALERT */}
+        {errorMsg && (
+          <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 text-xs text-[#DC2626] dark:text-[#F87171] flex items-center gap-2.5 font-normal">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMsg}</span>
           </div>
-        </div>
+        )}
 
-        {/* SUCCESS VIEW (PASSWORD SETUP EMAIL NOTIFICATION) */}
-        {createdToken ? (
-          <div className="space-y-5">
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 flex items-start gap-3">
-              <MailCheck className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <span className="font-extrabold text-sm block">Registration Successful!</span>
-                <p className="text-xs text-emerald-800 leading-relaxed">
-                  We sent a secure password setup link to <span className="font-bold">{createdToken.email}</span>. Please check your inbox to configure your password.
-                </p>
+        {/* SUCCESS CARD / EMAIL VERIFICATION REQUIRED STATE */}
+        {registerResult ? (
+          <div className="space-y-6 text-center">
+            <div className="w-14 h-14 rounded-full bg-blue-50 dark:bg-[rgba(37,99,235,0.12)] text-[#2563EB] dark:text-[#60A5FA] flex items-center justify-center mx-auto">
+              <Mail className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-2">
+              <h2 className="text-lg font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
+                Registration Successful
+              </h2>
+              <p className="text-xs text-[#64748B] dark:text-[#94A3B8] font-normal leading-relaxed max-w-sm mx-auto">
+                We've sent a verification email to:
+              </p>
+
+              {registerResult.email_masked && (
+                <div className="p-2.5 bg-slate-50 dark:bg-[#0F172A] border border-[#E2E8F0] dark:border-[#263244] rounded-xl text-xs font-mono text-[#2563EB] dark:text-[#60A5FA] font-semibold inline-block my-1">
+                  {registerResult.email_masked}
+                </div>
+              )}
+
+              <p className="text-xs text-[#64748B] dark:text-[#94A3B8] font-normal pt-1">
+                Please check your inbox and verify your email to continue setting up your account.
+              </p>
+            </div>
+
+            {resendMsg && (
+              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-[rgba(16,185,129,0.08)] border border-emerald-200 dark:border-emerald-500/20 text-xs text-emerald-800 dark:text-[#6EE7B7] flex items-center gap-2 justify-center font-normal">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{resendMsg}</span>
               </div>
-            </div>
+            )}
 
-            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs space-y-2">
-              <div className="font-bold text-slate-900">Next Steps:</div>
-              <ol className="list-decimal pl-4 space-y-1 text-slate-600 text-[11px]">
-                <li>Open the password setup email sent to your address.</li>
-                <li>Create your secure Global Student password.</li>
-                <li>Sign in to access your course portal automatically.</li>
-              </ol>
-            </div>
+            <div className="flex flex-col gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleResendVerificationEmail}
+                disabled={isResending || cooldown > 0}
+                className="w-full h-11 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isResending ? 'animate-spin' : ''}`} />
+                <span>
+                  {isResending
+                    ? 'Sending Email...'
+                    : cooldown > 0
+                    ? `Resend available in ${cooldown}s`
+                    : 'Resend Verification Email'}
+                </span>
+              </button>
 
-            {/* DEV TESTING FAST-FORWARD BUTTON */}
-            <div className="pt-2 space-y-2">
-              <a href={setupUrl} className="block">
-                <button
-                  type="button"
-                  style={primaryStyle}
-                  className="w-full h-[48px] text-white font-semibold text-sm rounded-xl transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2 hover:opacity-95"
-                >
-                  <span>Open Password Setup Link</span>
-                  <ExternalLink className="w-4 h-4" />
-                </button>
-              </a>
-
-              <Link to={loginUrl} className="block">
-                <button
-                  type="button"
-                  className="w-full h-[44px] bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
-                >
-                  Go to Login
-                </button>
+              <Link
+                to={loginUrl}
+                className="w-full h-10 border border-[#E2E8F0] dark:border-[#263244] hover:bg-slate-50 dark:hover:bg-[#172033] text-[#64748B] dark:text-[#CBD5E1] font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-colors"
+              >
+                <span>Go to Login</span>
               </Link>
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit(handleFormSubmit, handleFormError)} className="space-y-4">
+          /* REGISTRATION FORM */
+          <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+            {/* FULL NAME */}
             <div className="space-y-1">
-              <label htmlFor="reg-fullname" className="block text-xs font-semibold text-slate-800">Full Name</label>
-              <input
-                id="reg-fullname"
-                type="text"
-                placeholder="Alex Student"
-                aria-invalid={!!errors.fullName}
-                aria-describedby={errors.fullName ? 'fullname-error' : undefined}
-                {...register('fullName')}
-                className={`w-full h-[46px] px-3.5 rounded-xl border ${
-                  errors.fullName ? 'border-red-500' : 'border-slate-200'
-                } bg-white text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
-              />
-              {errors.fullName && <span id="fullname-error" className="text-[11px] font-semibold text-red-600 block">{errors.fullName.message}</span>}
-            </div>
-
-            <div className="space-y-1">
-              <label htmlFor="reg-email" className="block text-xs font-semibold text-slate-800">Email Address</label>
-              <input
-                id="reg-email"
-                type="email"
-                placeholder="alex@student.com"
-                aria-invalid={!!errors.email}
-                aria-describedby={errors.email ? 'email-error' : undefined}
-                {...register('email')}
-                className={`w-full h-[46px] px-3.5 rounded-xl border ${
-                  errors.email ? 'border-red-500' : 'border-slate-200'
-                } bg-white text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
-              />
-              {errors.email && <span id="email-error" className="text-[11px] font-semibold text-red-600 block">{errors.email.message}</span>}
-            </div>
-
-            <div className="space-y-1">
-              <label htmlFor="reg-phone" className="block text-xs font-semibold text-slate-800">Phone Number (Optional)</label>
-              <input
-                id="reg-phone"
-                type="tel"
-                placeholder="+1 (555) 019-2831"
-                {...register('phone')}
-                className="w-full h-[46px] px-3.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="flex items-start gap-2 text-xs text-slate-600 cursor-pointer pt-1">
-                <input
-                  type="checkbox"
-                  aria-invalid={!!errors.termsAccepted}
-                  aria-describedby={errors.termsAccepted ? 'terms-error' : undefined}
-                  {...register('termsAccepted')}
-                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer mt-0.5"
-                />
-                <span>I agree to the Terms of Service &amp; Privacy Policy for CubixSkill.</span>
+              <label className="block text-xs font-semibold text-[#0F172A] dark:text-[#CBD5E1]">
+                Full Name *
               </label>
-              {errors.termsAccepted && (
-                <span id="terms-error" className="text-[11px] font-semibold text-red-600 block">{errors.termsAccepted.message}</span>
+              <input
+                type="text"
+                placeholder="Jane Doe"
+                {...register('fullName')}
+                className="w-full h-11 px-3.5 rounded-xl border border-[#E2E8F0] dark:border-[#263244] bg-white dark:bg-[#0F172A] text-xs font-normal text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:border-[#2563EB]"
+              />
+              {errors.fullName && (
+                <p className="text-[11px] text-[#DC2626] dark:text-[#F87171] font-normal">{errors.fullName.message}</p>
               )}
             </div>
 
+            {/* EMAIL */}
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-[#0F172A] dark:text-[#CBD5E1]">
+                Email Address *
+              </label>
+              <input
+                type="email"
+                placeholder="student@example.com"
+                {...register('email')}
+                className="w-full h-11 px-3.5 rounded-xl border border-[#E2E8F0] dark:border-[#263244] bg-white dark:bg-[#0F172A] text-xs font-normal text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:border-[#2563EB]"
+              />
+              {errors.email && (
+                <p className="text-[11px] text-[#DC2626] dark:text-[#F87171] font-normal">{errors.email.message}</p>
+              )}
+            </div>
+
+            {/* PHONE */}
+            <div className="space-y-1">
+              <label className="block text-xs font-semibold text-[#0F172A] dark:text-[#CBD5E1]">
+                Phone Number <span className="text-slate-400 font-normal">(Optional)</span>
+              </label>
+              <input
+                type="tel"
+                placeholder="+91 98765 43210"
+                {...register('phone')}
+                className="w-full h-11 px-3.5 rounded-xl border border-[#E2E8F0] dark:border-[#263244] bg-white dark:bg-[#0F172A] text-xs font-normal text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:border-[#2563EB]"
+              />
+            </div>
+
+            {/* TERMS CHECKBOX */}
+            <div className="pt-2">
+              <label className="flex items-start gap-2.5 cursor-pointer text-xs text-[#64748B] dark:text-[#94A3B8] font-normal">
+                <input
+                  type="checkbox"
+                  {...register('termsAccepted')}
+                  className="mt-0.5 rounded border-[#E2E8F0] dark:border-[#263244] text-[#2563EB] focus:ring-0 cursor-pointer"
+                />
+                <span>
+                  I agree to the <span className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">Terms of Service</span> and <span className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">Privacy Policy</span>.
+                </span>
+              </label>
+              {errors.termsAccepted && (
+                <p className="text-[11px] text-[#DC2626] dark:text-[#F87171] font-normal mt-1">{errors.termsAccepted.message}</p>
+              )}
+            </div>
+
+            {/* SUBMIT BUTTON */}
             <button
               type="submit"
               disabled={isSubmitting}
-              style={primaryStyle}
-              className="w-full h-[48px] text-white font-semibold text-sm rounded-xl transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2 hover:opacity-95"
+              className="w-full h-11 mt-4 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
             >
-              <span>{isSubmitting ? 'Submitting Registration...' : 'Create Student Account'}</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>{isSubmitting ? 'Creating Account...' : 'Register'}</span>
             </button>
+
+            {/* LOGIN REDIRECT FOOTER */}
+            <div className="text-center pt-4 text-xs text-[#64748B] dark:text-[#94A3B8] font-normal">
+              Already have an account?{' '}
+              <Link to={loginUrl} className="font-semibold text-[#2563EB] dark:text-[#60A5FA] hover:underline">
+                Sign In
+              </Link>
+            </div>
           </form>
         )}
-
-        <div className="text-center pt-2 border-t border-slate-100 text-xs">
-          <span className="text-slate-500">Already have an account? </span>
-          <Link to={loginUrl} className="font-bold text-blue-600 hover:underline">
-            Login
-          </Link>
-        </div>
-      </div>
-
-      <div className="mt-4 flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
-        <Shield className="w-3.5 h-3.5 text-emerald-500" />
-        <span>One Global Account for All CubixSkill Academies</span>
       </div>
     </div>
   );
 };
-
-

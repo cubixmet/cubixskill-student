@@ -1,11 +1,11 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useParams, Navigate, Outlet, Link } from 'react-router-dom';
 import { Clock, ShieldAlert, Sparkles, ArrowRight } from 'lucide-react';
-import { useCourseStore } from '../../../stores/course.store';
 import { AuthSkeleton } from './AuthSkeleton';
 import { useAuthStore } from '../../../stores/auth.store';
 import { useEnrollmentStore } from '../../../stores/enrollment.store';
 import { Button } from '../../../components/ui/Button';
+import { isValidUuid } from '../../../utils/routeBuilder';
 
 interface Props {
   children?: React.ReactNode;
@@ -13,8 +13,6 @@ interface Props {
 
 export const CourseEnrollmentGuard: React.FC<Props> = ({ children }) => {
   const { academyUuid, courseUuid } = useParams<{ academyUuid: string; courseUuid: string }>();
-  const getCourseByUuid = useCourseStore((state) => state.getCourseByUuid);
-  const setActiveCourse = useCourseStore((state) => state.setActiveCourse);
   const isLoading = useAuthStore((state) => state.isLoading);
   const student = useAuthStore((state) => state.student);
 
@@ -22,42 +20,23 @@ export const CourseEnrollmentGuard: React.FC<Props> = ({ children }) => {
   const createOrUpdateEnrollment = useEnrollmentStore((state) => state.createOrUpdateEnrollment);
   const upgradeToFullAccess = useEnrollmentStore((state) => state.upgradeToFullAccess);
 
-  useEffect(() => {
-    if (courseUuid) {
-      const course = getCourseByUuid(courseUuid);
-      if (course) {
-        setActiveCourse(course);
-      }
-    }
-  }, [courseUuid, getCourseByUuid, setActiveCourse]);
-
   if (isLoading) {
     return <AuthSkeleton />;
   }
 
-  if (!courseUuid || !academyUuid) {
-    return <Navigate to="/404" replace />;
-  }
-
-  const course = getCourseByUuid(courseUuid);
-
-  if (!course) {
-    return <Navigate to="/404" replace />;
-  }
-
-  if (course.academyUuid !== academyUuid) {
-    return <Navigate to="/403" replace />;
+  if (!isValidUuid(academyUuid) || !isValidUuid(courseUuid)) {
+    return <Navigate to="/student/academies" replace />;
   }
 
   const studentUuid = student?.uuid || 'std-production-1';
-  let enrollment = getEnrollment(studentUuid, courseUuid);
+  let enrollment = getEnrollment(studentUuid, courseUuid!);
 
   // If student has no recorded enrollment for this course yet, auto-provision default active full enrollment
   if (!enrollment) {
     enrollment = createOrUpdateEnrollment({
       studentUuid,
-      academyUuid,
-      courseUuid,
+      academyUuid: academyUuid!,
+      courseUuid: courseUuid!,
       accessType: 'full',
     });
   }
@@ -78,7 +57,7 @@ export const CourseEnrollmentGuard: React.FC<Props> = ({ children }) => {
             </span>
             <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Your Demo Access Has Expired</h1>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Your temporary demo access for <span className="font-bold text-slate-900">{course.title}</span> has ended. Upgrade to Full Course Access to unlock all modules, live classes, quizzes, and your verified certificate.
+              Your temporary demo access for this course has ended. Upgrade to Full Course Access to unlock all modules, live classes, quizzes, and your verified certificate.
             </p>
           </div>
 
@@ -100,7 +79,7 @@ export const CourseEnrollmentGuard: React.FC<Props> = ({ children }) => {
               size="lg"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold justify-center min-h-[48px]"
               onClick={() => {
-                upgradeToFullAccess(studentUuid, courseUuid);
+                upgradeToFullAccess(studentUuid, courseUuid!);
                 window.location.reload();
               }}
               rightIcon={<ArrowRight className="w-4 h-4" />}
@@ -120,4 +99,3 @@ export const CourseEnrollmentGuard: React.FC<Props> = ({ children }) => {
 
   return children ? <>{children}</> : <Outlet />;
 };
-

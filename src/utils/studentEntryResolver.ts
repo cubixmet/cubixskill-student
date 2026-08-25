@@ -1,6 +1,7 @@
 import { getLastActiveCourse } from './last-active-course.utility';
 import { useEnrollmentStore } from '../stores/enrollment.store';
 import { useCourseStore } from '../stores/course.store';
+import { isValidUuid, buildStudentCourseOverviewPath, buildStudentAcademyCoursesPath } from './routeBuilder';
 
 export interface StudentEntryParams {
   studentUuid: string;
@@ -25,10 +26,10 @@ export function resolveStudentEntry(params: StudentEntryParams): string {
   const getStudentCoursesByAcademy = useCourseStore.getState().getStudentCoursesByAcademy;
 
   // 1. Explicit current course intent
-  if (academyUuid && courseUuid) {
-    const enrollment = getEnrollment(studentUuid, courseUuid);
+  if (isValidUuid(academyUuid) && isValidUuid(courseUuid)) {
+    const enrollment = getEnrollment(studentUuid, courseUuid!);
     if (!enrollment || enrollment.status !== 'expired') {
-      return `/student/academies/${academyUuid}/courses/${courseUuid}/overview`;
+      return buildStudentCourseOverviewPath(academyUuid!, courseUuid!);
     }
   }
 
@@ -38,27 +39,29 @@ export function resolveStudentEntry(params: StudentEntryParams): string {
     typeof returnTo === 'string' &&
     returnTo.startsWith('/') &&
     !returnTo.startsWith('//') &&
-    !returnTo.includes('javascript:')
+    !returnTo.includes('javascript:') &&
+    !returnTo.includes('/undefined') &&
+    !returnTo.includes('/null')
   ) {
     return returnTo;
   }
 
   // 3. Validated Last Active Course
   const lastActive = getLastActiveCourse();
-  if (lastActive && lastActive.academyUuid && lastActive.courseUuid) {
+  if (lastActive && isValidUuid(lastActive.academyUuid) && isValidUuid(lastActive.courseUuid)) {
     const activeEnrollment = getEnrollment(studentUuid, lastActive.courseUuid);
     if (activeEnrollment) {
-      return `/student/academies/${lastActive.academyUuid}/courses/${lastActive.courseUuid}/overview`;
+      return buildStudentCourseOverviewPath(lastActive.academyUuid, lastActive.courseUuid);
     }
   }
 
   // 4. Current academy enrolled-course list
-  if (academyUuid) {
-    const enrolledCourses = getStudentCoursesByAcademy(academyUuid);
-    if (enrolledCourses.length === 1) {
-      return `/student/academies/${academyUuid}/courses/${enrolledCourses[0].uuid}/overview`;
+  if (isValidUuid(academyUuid)) {
+    const enrolledCourses = getStudentCoursesByAcademy(academyUuid!);
+    if (enrolledCourses.length === 1 && isValidUuid(enrolledCourses[0].uuid)) {
+      return buildStudentCourseOverviewPath(academyUuid!, enrolledCourses[0].uuid);
     }
-    return `/student/academies/${academyUuid}/courses`;
+    return buildStudentAcademyCoursesPath(academyUuid!);
   }
 
   // 5. Global fallback

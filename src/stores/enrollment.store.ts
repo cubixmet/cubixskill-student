@@ -25,25 +25,13 @@ interface EnrollmentStoreState {
   }) => CourseEnrollment;
   upgradeToFullAccess: (studentUuid: string, courseUuid: string) => void;
   isEnrollmentExpired: (enrollment: CourseEnrollment) => boolean;
+  reset: () => void;
 }
-
-// Initial mock enrollments for demo & default testing
-const MOCK_ENROLLMENTS: CourseEnrollment[] = [
-  {
-    id: 'enr-1',
-    studentUuid: 'std-production-1',
-    academyUuid: '550e8400-e29b-41d4-a716-446655440000',
-    courseUuid: '9c78bda1-98c2-4b11-8b81-92d3db12b501',
-    accessType: 'full',
-    status: 'active',
-    startedAt: '2026-01-01T00:00:00.000Z',
-  },
-];
 
 export const useEnrollmentStore = create<EnrollmentStoreState>()(
   persist(
     (set, get) => ({
-      enrollments: MOCK_ENROLLMENTS,
+      enrollments: [],
 
       getEnrollment: (studentUuid, courseUuid) => {
         const enrollment = get().enrollments.find(
@@ -127,6 +115,8 @@ export const useEnrollmentStore = create<EnrollmentStoreState>()(
         if (!enrollment.expiresAt) return false;
         return Date.now() > new Date(enrollment.expiresAt).getTime();
       },
+
+      reset: () => set({ enrollments: [] }),
     }),
     {
       name: 'cubixskill_student_enrollment_store_v1',

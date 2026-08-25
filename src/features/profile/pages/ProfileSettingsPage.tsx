@@ -27,10 +27,10 @@ export const ProfileSettingsPage: React.FC = () => {
   const courses = useCourseStore((state) => state.courses);
 
   // Student Certificate Store
-  const getTemplateFieldsForCourse = useStudentCertificateStore((state) => state.getTemplateFieldsForCourse);
-  const getStudentCertificateFieldValues = useStudentCertificateStore((state) => state.getStudentCertificateFieldValues);
-  const saveStudentCertificateDetails = useStudentCertificateStore((state) => state.saveStudentCertificateDetails);
-  const isCertificateProfileComplete = useStudentCertificateStore((state) => state.isCertificateProfileComplete);
+  const getTemplateFieldsForCourse = useStudentCertificateStore((state: any) => state.getTemplateFieldsForCourse);
+  const getStudentCertificateFieldValues = useStudentCertificateStore((state: any) => state.getStudentCertificateFieldValues);
+  const saveStudentCertificateDetails = useStudentCertificateStore((state: any) => state.saveStudentCertificateDetails);
+  const isCertificateProfileComplete = useStudentCertificateStore((state: any) => state.isCertificateProfileComplete);
 
   const templateFields: DynamicCertificateTemplateField[] = getTemplateFieldsForCourse(courseUuid);
 

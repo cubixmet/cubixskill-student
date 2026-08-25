@@ -37,67 +37,13 @@ interface StorageAccountingStoreState {
   registerStorageUpload: (data: Omit<StorageObjectRecord, 'storageObjectUuid' | 'createdAt' | 'status'>) => StorageObjectRecord;
   deleteStorageObject: (storageObjectUuid: string) => void;
   getAcademyStorageSummary: (academyUuid: string, storageLimitBytes?: number) => AcademyStorageSummary;
+  reset: () => void;
 }
-
-const INITIAL_MOCK_STORAGE_OBJECTS: StorageObjectRecord[] = [
-  {
-    storageObjectUuid: 'sob-101',
-    academyUuid: '550e8400-e29b-41d4-a716-446655440000',
-    category: 'course_resources',
-    ownerType: 'resource',
-    ownerUuid: 'res-101',
-    storageKey: 'resources/React_19_Architecture_Cheatsheet.pdf',
-    fileName: 'React_19_Architecture_Cheatsheet.pdf',
-    mimeType: 'application/pdf',
-    fileSizeBytes: 2516582, // ~2.4 MB
-    status: 'active',
-    createdAt: '2026-08-01T10:00:00Z',
-  },
-  {
-    storageObjectUuid: 'sob-102',
-    academyUuid: '550e8400-e29b-41d4-a716-446655440000',
-    category: 'lesson_resources',
-    ownerType: 'resource',
-    ownerUuid: 'res-102',
-    storageKey: 'resources/react19_compiler_starter.zip',
-    fileName: 'react19_compiler_starter.zip',
-    mimeType: 'application/zip',
-    fileSizeBytes: 9123456, // ~8.7 MB
-    status: 'active',
-    createdAt: '2026-08-02T12:00:00Z',
-  },
-  {
-    storageObjectUuid: 'sob-103',
-    academyUuid: '550e8400-e29b-41d4-a716-446655440000',
-    category: 'discussion',
-    ownerType: 'discussion_post',
-    ownerUuid: 'post-402',
-    storageKey: 'discussions/useActionState_diagram.png',
-    fileName: 'useActionState_diagram.png',
-    mimeType: 'image/png',
-    fileSizeBytes: 552960, // ~540 KB
-    status: 'active',
-    createdAt: '2026-08-09T14:30:00Z',
-  },
-  {
-    storageObjectUuid: 'sob-104',
-    academyUuid: '550e8400-e29b-41d4-a716-446655440000',
-    category: 'assignment_submissions',
-    ownerType: 'assignment_submission',
-    ownerUuid: 'sub-201',
-    storageKey: 'submissions/zustand_state_store.zip',
-    fileName: 'zustand_state_store.zip',
-    mimeType: 'application/zip',
-    fileSizeBytes: 4194304, // ~4 MB
-    status: 'active',
-    createdAt: '2026-08-10T14:20:00Z',
-  },
-];
 
 export const useStorageAccountingStore = create<StorageAccountingStoreState>()(
   persist(
     (set, get) => ({
-      objects: INITIAL_MOCK_STORAGE_OBJECTS,
+      objects: [],
 
       registerStorageUpload: (data) => {
         const newRecord: StorageObjectRecord = {
@@ -152,6 +98,8 @@ export const useStorageAccountingStore = create<StorageAccountingStoreState>()(
           categoryBreakdown,
         };
       },
+
+      reset: () => set({ objects: [] }),
     }),
     {
       name: 'cubixskill:storage-accounting-store',

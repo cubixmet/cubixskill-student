@@ -1,12 +1,16 @@
 export interface AuthStudent {
   uuid: string;
   id?: string;
+  user_id?: string;
+  userId?: string;
   fullName: string;
   name?: string;
   email: string;
   phone?: string;
   avatar?: string;
   avatarUrl?: string;
+  role_code?: string;
+  academy?: any;
   isDemoSession?: boolean;
   demoCourseUuid?: string;
   demoCourseTitle?: string;

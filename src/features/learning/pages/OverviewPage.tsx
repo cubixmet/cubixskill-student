@@ -1,34 +1,60 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   PlayCircle,
   BookOpen,
-  Clock,
-  Award,
-  FileCheck,
   CheckCircle2,
   Sparkles,
   ShieldCheck,
-  Video,
   Bell,
-  AlertCircle,
-  Inbox,
 } from 'lucide-react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
-import { Badge } from '../../../components/ui/Badge';
-import { useCourseStore } from '../../../stores/course.store';
-import { useAcademyStore } from '../../../stores/academy.store';
-import { useAuthStore } from '../../../stores/auth.store';
-import { useEnrollmentStore } from '../../../stores/enrollment.store';
-import { useLiveClassStore } from '../../../stores/live-class.store';
-import { resolveLiveClassStatus, formatLiveClassDate, formatLiveClassTime } from '../../live-classes/utils/liveClassResolver';
-import { LiveClassCard } from '../../live-classes/components/LiveClassCard';
-import { useLearningStore } from '../../../stores/learning.store';
-import { saveLastActiveCourse } from '../../../utils/last-active-course.utility';
-import { resolveContinueLesson } from '../utils/resolveContinueLesson';
-import { flattenCurriculum } from '../utils/flattenCurriculum';
-import { getCourseWithResolvedCurriculum } from '../../../mocks/demoCourseCurriculum';
+import { Skeleton } from '../../../components/ui/Skeleton';
+import { StudentStateCard } from '../../../components/ui/StudentStateCard';
+import { studentPortalService, type StudentCourseOverviewResponse } from '../../../services/studentPortal.service';
+import { resolveMediaUrl } from '../../../services/apiClient';
+import { CourseTabs } from '../components/CourseTabs';
+import { LearningProgressCard } from '../components/LearningProgressCard';
+
+import { buildStudentCourseLearnPath, buildStudentCourseCurriculumPath, isValidUuid } from '../../../utils/routeBuilder';
+
+const OverviewSkeleton: React.FC = () => (
+  <div className="space-y-6 font-sans text-xs text-left max-w-5xl mx-auto w-full px-1 sm:px-0">
+    <div className="flex items-center gap-2">
+      <Skeleton className="h-4 w-24 rounded-md" />
+      <span className="text-slate-300">/</span>
+      <Skeleton className="h-4 w-48 rounded-md" />
+      <span className="text-slate-300">/</span>
+      <Skeleton className="h-4 w-16 rounded-md" />
+    </div>
+
+    <Skeleton className="h-11 w-full rounded-xl" />
+
+    <Card padding="md" className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#263244] shadow-2xs rounded-2xl p-6 space-y-4">
+      <div className="flex flex-col md:flex-row gap-6 items-stretch">
+        <Skeleton className="w-full md:w-64 h-48 sm:h-52 rounded-xl shrink-0" />
+        <div className="flex-1 space-y-4 flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-6 w-36 rounded-full" />
+              <Skeleton className="h-4 w-24 rounded-md" />
+            </div>
+            <Skeleton className="h-8 w-3/4 rounded-lg" />
+            <Skeleton className="h-4 w-1/2 rounded-md" />
+          </div>
+          <div className="pt-3 border-t border-slate-100 dark:border-[#263244] grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Skeleton className="h-11 w-full rounded-xl" />
+            <Skeleton className="h-11 w-full rounded-xl" />
+          </div>
+        </div>
+      </div>
+    </Card>
+
+    <Skeleton className="h-28 w-full rounded-2xl" />
+    <Skeleton className="h-56 w-full rounded-2xl" />
+  </div>
+);
 
 export const OverviewPage: React.FC = () => {
   const { academyUuid, courseUuid } = useParams<{
@@ -38,213 +64,177 @@ export const OverviewPage: React.FC = () => {
 
   const navigate = useNavigate();
 
-  const courses = useCourseStore((state) => state.courses);
-  const academies = useAcademyStore((state) => state.academies);
-  const student = useAuthStore((state) => state.student);
-  const getEnrollment = useEnrollmentStore((state) => state.getEnrollment);
-  const upgradeToFullAccess = useEnrollmentStore((state) => state.upgradeToFullAccess);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [overviewData, setOverviewData] = useState<StudentCourseOverviewResponse | null>(null);
+  const [reloadToken, setReloadToken] = useState<number>(0);
 
-  const completedLessonIds = useLearningStore((state) => state.completedLessonIds);
-  const watchPercentages = useLearningStore((state) => state.watchPercentages);
-  const lastAccessedLessonUuid = useLearningStore((state) => state.lastAccessedLessonUuid);
-  const setLastAccessedLessonUuid = useLearningStore((state) => state.setLastAccessedLessonUuid);
-
-  const course = useMemo(() => {
-    if (!academyUuid || !courseUuid) return undefined;
-    const rawCourse = courses.find((c) => c.academyUuid === academyUuid && (c.uuid === courseUuid || c.courseUuid === courseUuid));
-    return getCourseWithResolvedCurriculum(rawCourse, academyUuid, courseUuid);
-  }, [courses, academyUuid, courseUuid]);
-
-  const academy = useMemo(() => {
-    if (!academyUuid) return undefined;
-    return academies.find((a) => a.uuid === academyUuid);
-  }, [academies, academyUuid]);
-
-  const theme = academy?.theme || { primaryColor: '#2563EB' };
-  const studentUuid = student?.uuid || 'std-production-1';
-
-  const enrollments = useEnrollmentStore((state) => state.enrollments);
-
-  const enrollment = useMemo(() => {
-    if (!courseUuid) return undefined;
-    const found = enrollments.find(
-      (e) => (e.studentUuid === studentUuid || studentUuid === 'any') && e.courseUuid === courseUuid
-    );
-    if (found && found.accessType === 'demo' && found.expiresAt && Date.now() > new Date(found.expiresAt).getTime()) {
-      return { ...found, status: 'expired' as const };
-    }
-    return found;
-  }, [enrollments, studentUuid, courseUuid]);
-
-  const isDemo = enrollment?.accessType === 'demo';
-
-  // Null-safe continue lesson resolution
-  const continueResolution = useMemo(() => {
-    if (!course) return null;
-    return resolveContinueLesson({
-      course,
-      enrollment,
-      completedLessonIds,
-      lastAccessedLessonUuid,
-    });
-  }, [course, enrollment, completedLessonIds, lastAccessedLessonUuid]);
-
-  // Resolve nearest LiveClass session for this course safely
-  const liveClasses = useLiveClassStore((state) => state.liveClasses);
-  const nearestLiveClass = useMemo(() => {
-    if (!courseUuid) return undefined;
-    const courseLiveClasses = liveClasses.filter((item) => item.courseUuid === courseUuid);
-    const liveNowClass = courseLiveClasses.find((s) => resolveLiveClassStatus(s) === 'LIVE_NOW');
-    const upcomingClass = courseLiveClasses
-      .filter((s) => resolveLiveClassStatus(s) === 'UPCOMING')
-      .sort((a, b) => new Date(a.scheduledStartAt).getTime() - new Date(b.scheduledStartAt).getTime())[0];
-    return liveNowClass || upcomingClass;
-  }, [liveClasses, courseUuid]);
-
-  // Flattened curriculum calculation
-  const flattenedCurriculum = useMemo(() => flattenCurriculum(course), [course]);
-  const hasModules = Array.isArray(course?.modules) && course.modules.length > 0;
-  const isCurriculumEmpty = course && (course.modules?.length === 0 || flattenedCurriculum.length === 0);
-
-  // Dynamic Progress Calculation
-  const progressMetrics = useMemo(() => {
-    if (!course || flattenedCurriculum.length === 0) {
-      return { totalAccessibleCount: 0, completedCount: 0, remainingCount: 0, progressPercent: 0 };
-    }
-
-    const allLessons = flattenedCurriculum.map(({ lesson }) => {
-      const isAccessible =
-        !isDemo ||
-        lesson.isDemoAccessible === true ||
-        lesson.title.includes('1.1') ||
-        lesson.title.includes('1.2') ||
-        lesson.id === 'les-3.2';
-      return { id: lesson.id, title: lesson.title, isAccessible };
-    });
-
-    const accessibleLessons = allLessons.filter((l) => l.isAccessible);
-    const totalAccessibleCount = accessibleLessons.length || 1;
-    const completedCount = accessibleLessons.filter(
-      (l) =>
-        Array.isArray(completedLessonIds) &&
-        (completedLessonIds.includes(l.id) || completedLessonIds.includes(`les-${l.title.split(' ')[0]}`))
-    ).length;
-
-    const remainingCount = Math.max(0, totalAccessibleCount - completedCount);
-    const progressPercent = Math.min(100, Math.round((completedCount / totalAccessibleCount) * 100));
-
-    return { totalAccessibleCount, completedCount, remainingCount, progressPercent };
-  }, [course, flattenedCurriculum, isDemo, completedLessonIds]);
-
-  const handleContinueLearning = () => {
-    if (!academyUuid || !courseUuid || !continueResolution) return;
-
-    if (continueResolution.reason === 'demo_expired' || continueResolution.reason === 'demo_completed') {
-      navigate(`/${academyUuid}/register?course=${courseUuid}&intent=full`);
+  useEffect(() => {
+    let isMounted = true;
+    if (!isValidUuid(academyUuid) || !isValidUuid(courseUuid)) {
+      setError('Invalid course link.');
+      setIsLoading(false);
       return;
     }
 
-    if (continueResolution.lessonId) {
-      saveLastActiveCourse(academyUuid, courseUuid);
-      setLastAccessedLessonUuid(continueResolution.lessonId);
-      navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/learn/${continueResolution.lessonId}`);
-    } else {
-      navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/learn`);
-    }
+    setIsLoading(true);
+    setError(null);
+
+    const loadOverview = async () => {
+      try {
+        const data = await studentPortalService.getCourseOverview(academyUuid!, courseUuid!);
+        if (isMounted) {
+          if (data) {
+            setOverviewData(data);
+          } else {
+            setError('Could not locate course overview details.');
+          }
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          const msg = err?.message || err?.detail || 'Unable to load course overview.';
+          setError(msg);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadOverview();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [academyUuid, courseUuid, reloadToken]);
+
+  // Safely extract properties with defaults matching real API schema
+  const rawData: any = (overviewData as any)?.data || overviewData;
+
+  const course = rawData?.course || null;
+  const academy = rawData?.academy || null;
+  const enrollment = rawData?.enrollment || null;
+  const progress = rawData?.progress || null;
+
+  const courseTitle = String(course?.title || 'Course Overview');
+  const courseDescription = typeof course?.description === 'string' ? course.description : '';
+  const courseLevel = String(course?.level || 'Intermediate');
+  const courseLanguage = String(course?.language || 'English');
+  const instructorName = String(course?.instructor_name || course?.instructorName || 'Senior Educator');
+  const thumbnailPath = course?.thumbnail || course?.thumbnail_url || '';
+
+  const percentageNum = Math.min(100, Math.max(0, Math.round(Number(progress?.percentage ?? 0))));
+  const completedLessonsNum = Math.max(0, Math.round(Number(progress?.completed_lessons ?? 0)));
+  const totalLessonsNum = Math.max(0, Math.round(Number(progress?.total_lessons ?? 0)));
+  const accessType = String(enrollment?.access_type || 'full');
+  const academyName = String(academy?.name || 'Academy');
+
+  const handleStartOrContinue = () => {
+    if (!isValidUuid(academyUuid) || !isValidUuid(courseUuid)) return;
+    navigate(buildStudentCourseLearnPath(academyUuid, courseUuid));
   };
 
-  const handleUpgradeToFull = async () => {
-    if (!courseUuid) return;
-    await upgradeToFullAccess(studentUuid, courseUuid);
-    if (academyUuid) saveLastActiveCourse(academyUuid, courseUuid);
-    window.location.reload();
-  };
+  if (isLoading) {
+    return <OverviewSkeleton />;
+  }
 
-  // Route Param check / Missing course check
-  if (!academyUuid || !courseUuid || !course) {
+  if (error || !rawData || !course) {
     return (
-      <div className="min-h-[300px] flex flex-col items-center justify-center p-6 text-center space-y-3 font-sans text-xs bg-white rounded-3xl border border-slate-200 shadow-2xs">
-        <AlertCircle className="w-8 h-8 text-amber-500" />
-        <h2 className="text-base font-bold text-slate-900">Course Content Unavailable</h2>
-        <p className="text-slate-500">We could not locate the requested course details.</p>
-        <Link
-          to={academyUuid ? `/student/academies/${academyUuid}/courses` : '/student/academies'}
-          className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-xl"
-        >
-          Return to Course Catalog
-        </Link>
+      <div className="py-8 w-full min-h-[300px] flex items-center justify-center font-sans text-xs">
+        <StudentStateCard
+          variant="error"
+          title="Course Content Unavailable"
+          description={error || "We could not locate the requested course details."}
+          actionLabel="Try Again"
+          onAction={() => setReloadToken((prev) => prev + 1)}
+          secondaryActionLabel="Back to My Courses"
+          secondaryActionPath={isValidUuid(academyUuid) ? `/student/academies/${academyUuid}` : '/student/academies'}
+        />
       </div>
     );
   }
 
   return (
-    <div className="space-y-5 sm:space-y-6 font-sans text-xs text-left max-w-5xl mx-auto w-full px-1 sm:px-0">
-      {/* 1. HERO COURSE HEADER BANNER */}
-      <Card padding="md" className="bg-white border border-slate-200/80 shadow-2xs rounded-2xl sm:rounded-3xl space-y-4">
+    <div className="space-y-6 font-sans text-xs text-left max-w-5xl mx-auto w-full px-1 sm:px-0">
+      {/* 1. BREADCRUMB NAVIGATION */}
+      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-xs text-[#64748B] dark:text-[#94A3B8]">
+        <Link to={`/student/academies/${academyUuid}`} className="hover:text-[#2563EB] dark:hover:text-[#60A5FA] transition-colors">
+          Courses
+        </Link>
+        <span>/</span>
+        <span className="text-[#0F172A] dark:text-[#F8FAFC] font-semibold truncate max-w-xs">{courseTitle}</span>
+        <span>/</span>
+        <span className="text-[#2563EB] dark:text-[#60A5FA] font-semibold">Overview</span>
+      </nav>
+
+      {/* 2. COURSE TABS ROW */}
+      <CourseTabs academyUuid={academyUuid || ''} courseUuid={courseUuid || ''} activeTab="overview" />
+
+      {/* 3. HERO COURSE HEADER BANNER */}
+      <Card padding="md" className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#263244] shadow-2xs rounded-2xl space-y-4">
         <div className="flex flex-col md:flex-row gap-5 md:gap-6 items-stretch">
           {/* THUMBNAIL */}
-          <div className="w-full md:w-64 h-44 sm:h-52 md:h-auto bg-slate-100 rounded-2xl overflow-hidden shrink-0 border border-slate-200/60 relative">
-            <img
-              src={course.thumbnail}
-              alt={course.title}
-              loading="lazy"
-              className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-            />
-            {isDemo && (
-              <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-500 text-slate-950 shadow-md">
-                <Sparkles className="w-3.5 h-3.5 fill-slate-950" />
-                <span>Demo Access</span>
-              </span>
-            )}
-          </div>
+          {thumbnailPath && resolveMediaUrl(thumbnailPath) ? (
+            <div className="w-full md:w-64 h-44 sm:h-52 md:h-auto bg-slate-100 dark:bg-[#0F172A] rounded-xl overflow-hidden shrink-0 border border-slate-200 dark:border-[#263244] relative aspect-video md:aspect-auto flex items-center justify-center">
+              <img
+                src={resolveMediaUrl(thumbnailPath)}
+                alt={courseTitle}
+                loading="lazy"
+                className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+              />
+              {accessType === 'demo' && (
+                <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-400 text-slate-950 shadow-md">
+                  <Sparkles className="w-3.5 h-3.5 fill-slate-950" />
+                  <span>Demo Access</span>
+                </span>
+              )}
+            </div>
+          ) : null}
 
           {/* COURSE META DETAILS */}
           <div className="flex-1 space-y-3 flex flex-col justify-between">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
-                  <span>{isDemo ? 'Demo Access (5-Day Trial)' : 'Full Lifetime Access'}</span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-[rgba(16,185,129,0.12)] text-emerald-700 dark:text-[#6EE7B7] border border-emerald-200 dark:border-emerald-900/50">
+                  <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-[#6EE7B7]" />
+                  <span>{accessType === 'demo' ? 'Demo Access' : 'Full Lifetime Access'}</span>
                 </span>
-                <span className="text-slate-300 font-medium">•</span>
-                <span className="text-slate-500 font-medium text-xs">{course.level || 'Intermediate'}</span>
-                <span className="text-slate-300 font-medium">•</span>
-                <span className="text-slate-500 font-medium text-xs">{course.language || 'English'}</span>
+                <span className="text-slate-200 dark:text-[#334155] font-medium">•</span>
+                <span className="text-slate-500 dark:text-[#94A3B8] font-medium text-xs">{courseLevel}</span>
+                <span className="text-slate-200 dark:text-[#334155] font-medium">•</span>
+                <span className="text-slate-500 dark:text-[#94A3B8] font-medium text-xs">{courseLanguage}</span>
               </div>
 
-              <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 tracking-tight leading-snug break-words min-w-0">
-                {course.title}
+              <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-[#F8FAFC] tracking-tight leading-snug break-words min-w-0">
+                {courseTitle}
               </h1>
 
-              <p className="text-xs text-slate-500 font-normal">
-                Academy: <span className="font-medium text-slate-800">{academy?.name}</span> • Lead Instructor:{' '}
-                <span className="font-medium text-slate-800">{course.instructorName || 'Dr. Vikramaditya Rao'}</span>
+              <p className="text-xs text-slate-600 dark:text-[#CBD5E1] font-normal leading-relaxed">
+                Academy: <span className="font-semibold text-slate-900 dark:text-[#F8FAFC]">{academyName}</span> • Lead Instructor:{' '}
+                <span className="font-semibold text-slate-900 dark:text-[#F8FAFC]">{instructorName}</span>
               </p>
             </div>
 
             {/* MAIN ACTIONS */}
-            <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+            <div className="pt-3 border-t border-slate-100 dark:border-[#263244] grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
               <Button
-                onClick={handleContinueLearning}
-                disabled={!continueResolution}
-                className={`w-full font-semibold justify-center text-white min-h-[48px] rounded-xl shadow-xs ${
-                  !continueResolution ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                }`}
-                leftIcon={<PlayCircle className="w-4.5 h-4.5 text-white shrink-0" />}
-                style={{ backgroundColor: theme.primaryColor }}
+                onClick={handleStartOrContinue}
+                className="w-full font-semibold justify-center text-white min-h-[44px] rounded-xl shadow-2xs cursor-pointer bg-[#2563EB] hover:bg-[#1D4ED8]"
+                leftIcon={<PlayCircle className="w-4 h-4 text-white shrink-0" />}
               >
-                {isCurriculumEmpty
-                  ? 'Curriculum Unavailable'
-                  : continueResolution?.reason === 'demo_completed' || continueResolution?.reason === 'demo_expired'
-                  ? 'Upgrade to Full Course'
-                  : 'Continue Learning'}
+                {percentageNum > 0 && percentageNum < 100
+                  ? 'Continue Learning'
+                  : percentageNum === 100
+                  ? 'Review Course'
+                  : 'Start Course'}
               </Button>
 
               <Button
                 variant="outline"
-                onClick={() => navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/curriculum`)}
-                leftIcon={<BookOpen className="w-4.5 h-4.5 text-slate-600 shrink-0" />}
-                className="w-full font-semibold justify-center min-h-[48px] rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer"
+                onClick={() => navigate(buildStudentCourseCurriculumPath(academyUuid, courseUuid))}
+                leftIcon={<BookOpen className="w-4 h-4 text-slate-700 dark:text-[#CBD5E1] shrink-0" />}
+                className="w-full font-semibold justify-center min-h-[44px] rounded-xl border-slate-300 dark:border-[#334155] bg-white dark:bg-[#172033] text-slate-800 dark:text-[#F8FAFC] hover:bg-slate-100 dark:hover:bg-[#1E293B] shadow-2xs cursor-pointer"
               >
                 View Curriculum
               </Button>
@@ -253,254 +243,105 @@ export const OverviewPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* LIVE CLASS BANNER CARD */}
-      {nearestLiveClass && (
-        <LiveClassCard
-          liveClass={nearestLiveClass}
-          onJoin={() => navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/live-classes`)}
-        />
-      )}
+      {/* 4. DYNAMIC PROGRESS SUMMARY CARD */}
+      <LearningProgressCard
+        completedLessons={completedLessonsNum}
+        totalLessons={totalLessonsNum}
+        percentage={percentageNum}
+      />
 
-      {/* 2. DYNAMIC PROGRESS SUMMARY CARD */}
-      <Card padding="md" className="bg-white border border-slate-200/80 rounded-2xl sm:rounded-3xl shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-          <div className="space-y-0.5">
-            <h2 className="text-base sm:text-lg font-semibold text-slate-900">Your Learning Progress</h2>
-            <p className="text-xs text-slate-500 font-normal">
-              {isDemo ? 'Calculated from demo-accessible course lessons' : 'Overall course completion metrics'}
+      {/* 5. ABOUT THIS COURSE & WHAT YOU'LL LEARN */}
+      <Card padding="md" className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#263244] rounded-2xl shadow-2xs space-y-6 text-left">
+        <div className="space-y-3">
+          <h2 className="text-base sm:text-lg font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
+            About This Course
+          </h2>
+          <p className="text-xs sm:text-sm text-[#475569] dark:text-[#CBD5E1] font-normal leading-[1.65]">
+            {courseDescription || 'Master software design patterns, architecture, and production-ready implementation with hands-on exercises.'}
+          </p>
+        </div>
+
+        {/* WHAT YOU WILL LEARN */}
+        <div className="space-y-3 pt-4 border-t border-[#E2E8F0] dark:border-[#263244]">
+          <h2 className="text-base font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
+            What You'll Learn
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              'Master key fundamental concepts and principles',
+              'Build production-ready projects with real-world patterns',
+              'Apply best practices for software engineering and design',
+              'Understand advanced topics with hands-on exercises',
+            ].map((item, idx) => (
+              <div key={idx} className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-[#E2E8F0] dark:border-[#263244]">
+                <CheckCircle2 className="w-4 h-4 text-[#2563EB] dark:text-[#60A5FA] shrink-0 mt-0.5" />
+                <span className="text-xs font-normal text-[#475569] dark:text-[#CBD5E1] leading-snug">{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* REQUIREMENTS */}
+        <div className="space-y-2 pt-4 border-t border-[#E2E8F0] dark:border-[#263244]">
+          <h2 className="text-base font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
+            Course Requirements
+          </h2>
+          <ul className="list-disc list-inside space-y-1 text-xs text-[#475569] dark:text-[#CBD5E1]">
+            <li>Basic understanding of programming fundamentals and web applications.</li>
+            <li>A computer with internet access and a code editor installed.</li>
+          </ul>
+        </div>
+      </Card>
+
+      {/* 6. INSTRUCTOR SUMMARY CARD */}
+      <Card padding="md" className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#263244] rounded-2xl shadow-2xs space-y-4 text-left">
+        <h2 className="text-base font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
+          Course Instructor
+        </h2>
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-[rgba(37,99,235,0.12)] border border-blue-200 dark:border-[rgba(59,130,246,0.2)] text-[#2563EB] dark:text-[#60A5FA] font-bold text-base flex items-center justify-center shrink-0">
+            {instructorName.charAt(0)}
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-semibold text-sm text-[#0F172A] dark:text-[#F8FAFC]">
+              {instructorName}
+            </h3>
+            <span className="text-xs text-[#64748B] dark:text-[#94A3B8] font-medium block">Domain Expert &amp; Lead Instructor</span>
+            <p className="text-xs text-[#475569] dark:text-[#CBD5E1] font-normal leading-relaxed pt-1">
+              Passionate educator committed to helping students master concepts through practical exercises and real-world examples.
             </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl sm:text-3xl font-semibold text-slate-900" style={{ color: theme.primaryColor }}>
-              {progressMetrics.progressPercent}%
-            </span>
-          </div>
-        </div>
-
-        {/* ACCESSIBLE PROGRESS BAR */}
-        <div className="space-y-1.5">
-          <div
-            role="progressbar"
-            aria-valuenow={progressMetrics.progressPercent}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            className="w-full h-3 rounded-full bg-slate-100 overflow-hidden"
-          >
-            <div
-              className="h-full rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${progressMetrics.progressPercent}%`, backgroundColor: theme.primaryColor }}
-            />
-          </div>
-          <div className="flex items-center justify-between text-[11px] font-medium text-slate-500">
-            <span>{progressMetrics.completedCount} of {progressMetrics.totalAccessibleCount} lessons completed</span>
-            <span>{progressMetrics.remainingCount} remaining</span>
-          </div>
-        </div>
-
-        {/* METRIC CARDS */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-          <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200/60 text-center space-y-1">
-            <BookOpen className="w-4 h-4 mx-auto text-slate-600" />
-            <span className="text-sm sm:text-base font-semibold text-slate-900 block leading-tight">
-              {progressMetrics.completedCount} / {progressMetrics.totalAccessibleCount}
-            </span>
-            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">Completed</span>
-          </div>
-
-          <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200/60 text-center space-y-1">
-            <Clock className="w-4 h-4 mx-auto text-slate-600" />
-            <span className="text-sm sm:text-base font-semibold text-slate-900 block leading-tight">14.5 Hours</span>
-            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">Learning Time</span>
-          </div>
-
-          <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200/60 text-center space-y-1">
-            <FileCheck className="w-4 h-4 mx-auto text-slate-600" />
-            <span className="text-sm sm:text-base font-semibold text-slate-900 block leading-tight">1 Pending</span>
-            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">Assignments</span>
-          </div>
-
-          <div className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200/60 text-center space-y-1">
-            <Award className="w-4 h-4 mx-auto text-slate-600" />
-            <span className="text-sm sm:text-base font-semibold text-slate-900 block leading-tight">
-              {isDemo ? 'Requires Full' : 'Eligible'}
-            </span>
-            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">Certificate</span>
           </div>
         </div>
       </Card>
 
-      {/* 3. NEXT LESSON PREVIEW / SPOTLIGHT CARD */}
-      <Card padding="md" className="bg-white border border-slate-200/80 space-y-4 rounded-2xl sm:rounded-3xl shadow-2xs">
-        {isCurriculumEmpty ? (
-          /* STATE: EMPTY CURRICULUM */
-          <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700 space-y-2 text-center">
-            <Inbox className="w-8 h-8 text-slate-400 mx-auto" />
-            <span className="font-semibold text-sm sm:text-base block text-slate-900">Course content is not available yet.</span>
-            <p className="text-xs text-slate-500 font-normal">
-              The instructor is currently preparing curriculum modules for <span className="font-medium">{course.title}</span>. Please check back later.
-            </p>
-          </div>
-        ) : continueResolution?.reason === 'demo_expired' ? (
-          /* STATE: DEMO EXPIRED */
-          <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 space-y-3">
-            <div className="flex items-start gap-3">
-              <Sparkles className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
-              <div className="space-y-1 min-w-0">
-                <span className="font-semibold text-sm sm:text-base block">Demo Access Expired</span>
-                <p className="text-xs text-amber-900 leading-relaxed font-normal">
-                  Your 5-day demo period for <span className="font-medium">{course.title}</span> has ended. Upgrade to full course access to unlock all lessons and certificates.
-                </p>
-              </div>
-            </div>
-            <Button
-              onClick={handleUpgradeToFull}
-              style={{ backgroundColor: theme.primaryColor }}
-              className="w-full sm:w-auto font-semibold justify-center text-white min-h-[44px] px-6 rounded-xl cursor-pointer"
-            >
-              Enroll Full Course Now
-            </Button>
-          </div>
-        ) : continueResolution?.reason === 'demo_completed' ? (
-          /* STATE: DEMO COMPLETED */
-          <div className="p-5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-950 space-y-3">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="w-6 h-6 text-blue-600 shrink-0 mt-0.5" />
-              <div className="space-y-1 min-w-0">
-                <span className="font-semibold text-sm sm:text-base block">Demo Lessons Completed!</span>
-                <p className="text-xs text-blue-900 leading-relaxed font-normal">
-                  You have completed all available demo lessons in this course. Upgrade to full access to unlock the complete curriculum.
-                </p>
-              </div>
-            </div>
-            <Button
-              onClick={handleUpgradeToFull}
-              style={{ backgroundColor: theme.primaryColor }}
-              className="w-full sm:w-auto font-semibold justify-center text-white min-h-[44px] px-6 rounded-xl cursor-pointer"
-            >
-              Unlock Complete Course
-            </Button>
-          </div>
-        ) : continueResolution?.reason === 'course_completed' ? (
-          /* STATE: FULL COURSE COMPLETED */
-          <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 space-y-3">
-            <div className="flex items-start gap-3">
-              <Award className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
-              <div className="space-y-1 min-w-0">
-                <span className="font-semibold text-sm sm:text-base block">Course Completed!</span>
-                <p className="text-xs text-emerald-900 leading-relaxed font-normal">
-                  Congratulations! You have completed all lessons in <span className="font-medium">{course.title}</span>. Claim your official verified certificate below.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Button
-                onClick={() => navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/certificates`)}
-                style={{ backgroundColor: theme.primaryColor }}
-                className="w-full sm:w-auto font-semibold justify-center text-white min-h-[44px] px-6 rounded-xl cursor-pointer"
-                leftIcon={<Award className="w-4 h-4 text-white shrink-0" />}
-              >
-                View Certificate
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/curriculum`)}
-                className="w-full sm:w-auto font-semibold justify-center min-h-[44px] px-6 rounded-xl border-slate-200 text-slate-700 cursor-pointer"
-              >
-                Review Curriculum
-              </Button>
-            </div>
-          </div>
-        ) : (
-          /* STATE: NEXT LESSON SPOTLIGHT PREVIEW */
-          <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-100 pb-2.5">
-              <span className="font-medium text-[11px] text-slate-400 uppercase tracking-wider">
-                Up Next in Your Course
-              </span>
-              <span className="text-xs font-semibold" style={{ color: theme.primaryColor }}>
-                Resume Position: {continueResolution?.lessonId && watchPercentages[continueResolution.lessonId] ? `${watchPercentages[continueResolution.lessonId]}% Watched` : 'Ready to Start'}
-              </span>
-            </div>
-
-            <div className="p-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-1.5 min-w-0 flex-1">
-                <span className="text-[11px] font-medium text-slate-500 block truncate">
-                  {continueResolution?.moduleTitle || 'Module 1'}
-                </span>
-                <h3 className="font-semibold text-sm sm:text-base text-slate-900 leading-snug break-words">
-                  {continueResolution?.lessonTitle || 'Lesson Content'}
-                </h3>
-                <div className="flex flex-wrap items-center gap-3 pt-0.5 text-xs text-slate-600 font-medium">
-                  <span className="inline-flex items-center gap-1.5 text-blue-600 font-semibold">
-                    <Video className="w-4 h-4 shrink-0" />
-                    <span>Video Lesson</span>
-                  </span>
-                  {continueResolution?.duration && (
-                    <>
-                      <span className="text-slate-300">•</span>
-                      <span className="inline-flex items-center gap-1 text-slate-500">
-                        <Clock className="w-3.5 h-3.5 shrink-0" />
-                        <span>{continueResolution.duration}</span>
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <Button
-                size="sm"
-                onClick={handleContinueLearning}
-                disabled={!continueResolution}
-                leftIcon={<PlayCircle className="w-4 h-4 text-white shrink-0" />}
-                style={{ backgroundColor: theme.primaryColor }}
-                className={`w-full sm:w-auto font-semibold justify-center min-h-[44px] px-5 rounded-xl text-white shadow-xs cursor-pointer shrink-0 ${
-                  !continueResolution ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                Continue Learning
-              </Button>
-            </div>
-          </div>
-        )}
-      </Card>
-
-      {/* 4. RECENT ACTIVITY & NOTIFICATIONS GRID */}
+      {/* 7. RECENT ACTIVITY & NOTIFICATIONS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card padding="md" className="bg-white border border-slate-200/80 rounded-2xl sm:rounded-3xl shadow-2xs space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-            <span className="font-semibold text-xs text-slate-900">Recent Course Activity</span>
-            <span className="text-[11px] font-medium text-slate-400">Live Sync</span>
+        <Card padding="md" className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#263244] rounded-2xl shadow-2xs space-y-3">
+          <div className="flex items-center justify-between border-b border-[#E2E8F0] dark:border-[#263244] pb-2.5">
+            <span className="font-semibold text-xs text-[#0F172A] dark:text-[#F8FAFC]">Recent Course Activity</span>
+            <span className="text-[11px] font-medium text-[#64748B] dark:text-[#64748B]">Live Sync</span>
           </div>
           <div className="space-y-2">
-            <div className="p-2.5 rounded-xl bg-slate-50 flex items-center justify-between text-xs">
+            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-[#0F172A] flex items-center justify-between text-xs border border-[#E2E8F0] dark:border-[#263244]">
               <div className="flex items-center gap-2 min-w-0">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="font-medium text-slate-800 truncate">Completed 1.3 Server Components Overview</span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-[#6EE7B7] shrink-0" />
+                <span className="font-medium text-[#0F172A] dark:text-[#CBD5E1] truncate">Completed 1.3 Core Concepts Overview</span>
               </div>
-              <span className="text-[10px] font-medium text-slate-400 shrink-0">Today</span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-slate-50 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 min-w-0">
-                <PlayCircle className="w-4 h-4 text-blue-600 shrink-0" />
-                <span className="font-medium text-slate-800 truncate">Watched 1.2 Actions and Async State</span>
-              </div>
-              <span className="text-[10px] font-medium text-slate-400 shrink-0">Yesterday</span>
+              <span className="text-[10px] font-medium text-[#64748B] dark:text-[#64748B] shrink-0">Today</span>
             </div>
           </div>
         </Card>
 
-        <Card padding="md" className="bg-white border border-slate-200/80 rounded-2xl sm:rounded-3xl shadow-2xs space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-            <span className="font-semibold text-xs text-slate-900">Course Notices &amp; Updates</span>
-            <Bell className="w-4 h-4 text-slate-400" />
+        <Card padding="md" className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#263244] rounded-2xl shadow-2xs space-y-3">
+          <div className="flex items-center justify-between border-b border-[#E2E8F0] dark:border-[#263244] pb-2.5">
+            <span className="font-semibold text-xs text-[#0F172A] dark:text-[#F8FAFC]">Course Notices &amp; Updates</span>
+            <Bell className="w-4 h-4 text-[#64748B] dark:text-[#64748B]" />
           </div>
-          <div className="space-y-2">
-            <div className="p-2.5 rounded-xl bg-blue-50/60 border border-blue-100 text-xs flex items-start gap-2.5">
-              <Bell className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-              <div className="min-w-0">
-                <span className="font-semibold text-slate-900 block">Live Q&amp;A Session Scheduled</span>
-                <span className="text-[11px] text-slate-500 font-normal block">Join Dr. Rao this Thursday at 6 PM IST</span>
-              </div>
+          <div className="p-2.5 rounded-xl bg-blue-50/60 dark:bg-[rgba(37,99,235,0.12)] border border-blue-100 dark:border-[rgba(59,130,246,0.2)] text-xs flex items-start gap-2.5">
+            <Bell className="w-4 h-4 text-[#2563EB] dark:text-[#60A5FA] shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <span className="font-semibold text-[#0F172A] dark:text-[#F8FAFC] block">Live Q&amp;A Session Scheduled</span>
+              <span className="text-[11px] text-[#64748B] dark:text-[#94A3B8] font-normal block">Join instructor Q&amp;A this Thursday</span>
             </div>
           </div>
         </Card>

@@ -34,6 +34,7 @@ import { LiveClassRecordingModal } from '../components/LiveClassRecordingModal';
 import { LiveClassCard } from '../components/LiveClassCard';
 
 import { PageHeader } from '../../../components/ui/PageHeader';
+import { CourseTabs } from '../../learning/components/CourseTabs';
 
 export const LiveClassesPage: React.FC = () => {
   const { academyUuid = '550e8400-e29b-41d4-a716-446655440000', courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501' } = useParams<{
@@ -211,6 +212,9 @@ export const LiveClassesPage: React.FC = () => {
 
   return (
     <div className="space-y-5 sm:space-y-6 font-sans text-xs text-left max-w-5xl mx-auto pb-12">
+      {/* COURSE TABS ROW */}
+      <CourseTabs academyUuid={academyUuid} courseUuid={courseUuid} activeTab="live-classes" />
+
       {/* ACCESS ERROR TOAST */}
       {accessError && (
         <div className="p-3.5 rounded-2xl bg-slate-900 text-white flex items-start gap-2.5 shadow-lg border border-slate-800 animate-in fade-in duration-200">

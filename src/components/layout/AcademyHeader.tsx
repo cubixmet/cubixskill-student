@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Home, BookOpen, Mail, LogIn } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, X, Home, BookOpen, Mail, LogIn, UserPlus, LogOut, LayoutDashboard } from 'lucide-react';
 import type { AcademyEntity } from '../../stores/academy.store';
+import { useAuthStore } from '../../features/auth/store/auth.store';
+import { authService } from '../../features/auth/services/auth.service';
+import { setLastAcademy } from '../../lib/navigationIntent';
+import { ThemeToggle } from '../ui/ThemeToggle';
+import { Avatar } from '../ui/Avatar';
 
 interface AcademyHeaderProps {
   academy: AcademyEntity;
@@ -9,15 +14,33 @@ interface AcademyHeaderProps {
 
 export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const pathname = location.pathname;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const student = useAuthStore((state) => state.student);
+
   const baseUrl = `/${academy.uuid}`;
+
+  // Save last academy whenever header renders
+  useEffect(() => {
+    if (academy.uuid) {
+      setLastAcademy(academy.uuid);
+    }
+  }, [academy.uuid]);
 
   // Automatically close mobile menu on route change
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  const handleLogout = async () => {
+    await authService.logoutStudent();
+    useAuthStore.getState().logout();
+    setLastAcademy(academy.uuid);
+    navigate(baseUrl, { replace: true });
+  };
 
   const navLinks = [
     { label: 'Home', href: baseUrl, icon: Home },
@@ -25,51 +48,25 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
     { label: 'Contact', href: `${baseUrl}/contact`, icon: Mail },
   ];
 
-  return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200/80 font-sans text-xs relative">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 min-h-[64px] flex items-center justify-between gap-2 py-2 sm:py-0">
-        {/* MOBILE MENU TOGGLE BUTTON (LEFT SIDE) */}
-        <button
-          type="button"
-          onClick={() => setMobileMenuOpen((prev) => !prev)}
-          aria-label="Toggle menu"
-          aria-expanded={mobileMenuOpen}
-          className="
-            md:hidden
-            w-10
-            h-10
-            flex
-            items-center
-            justify-center
-            shrink-0
-            bg-transparent
-            border-0
-            rounded-lg
-            text-slate-800
-            hover:bg-slate-100
-            cursor-pointer
-            -ml-1
-          "
-        >
-          {mobileMenuOpen ? (
-            <X className="w-6 h-6" />
-          ) : (
-            <Menu className="w-6 h-6" />
-          )}
-        </button>
+  if (isAuthenticated) {
+    navLinks.push({
+      label: 'Dashboard',
+      href: `/student/academies/${academy.uuid}`,
+      icon: LayoutDashboard,
+    });
+  }
 
-        {/* LEFT/CENTER: ACADEMY LOGO & NAME */}
+  return (
+    <header className="sticky top-0 z-50 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-[#263244] font-sans text-xs relative">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 min-h-[64px] flex items-center justify-between gap-3 py-2 sm:py-0">
+        {/* LEFT / LOGO */}
         <Link to={baseUrl} className="flex items-center gap-3 flex-1 min-w-0 md:flex-initial">
-          <img
-            src={academy.logoUrl}
-            alt={academy.name}
-            className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover shrink-0"
-          />
-          <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-bold text-slate-900 leading-tight whitespace-normal break-words">
+          <Avatar src={academy.logoUrl} name={academy.name} type="academy" size="md" />
+          <div className="flex-1 min-w-0 text-left">
+            <h1 className="text-sm font-semibold text-slate-900 dark:text-[#F8FAFC] leading-tight whitespace-normal break-words">
               {academy.name}
             </h1>
-            <p className="text-[10px] sm:text-xs text-slate-500 leading-snug line-clamp-2">
+            <p className="text-[10px] sm:text-xs text-slate-500 dark:text-[#94A3B8] leading-snug line-clamp-1 font-normal">
               {academy.tagline}
             </p>
           </div>
@@ -83,18 +80,16 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
               <Link
                 key={link.href}
                 to={link.href}
-                className={`relative py-2 text-sm font-semibold transition-colors cursor-pointer ${
-                  isActive ? 'text-blue-600' : 'text-slate-600 hover:text-slate-900'
+                className={`relative py-2 text-xs sm:text-sm font-semibold transition-colors cursor-pointer ${
+                  isActive
+                    ? 'text-[#2563EB] dark:text-[#60A5FA]'
+                    : 'text-slate-600 dark:text-[#CBD5E1] hover:text-slate-900 dark:hover:text-[#F8FAFC]'
                 }`}
-                style={{
-                  color: isActive ? academy.theme.primaryColor : undefined,
-                }}
               >
                 <span>{link.label}</span>
                 {isActive && (
                   <span
-                    className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full animate-in fade-in"
-                    style={{ backgroundColor: academy.theme.primaryColor }}
+                    className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[#2563EB] dark:bg-[#60A5FA]"
                   />
                 )}
               </Link>
@@ -102,29 +97,66 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
           })}
         </nav>
 
-        {/* RIGHT: DESKTOP CTAs */}
+        {/* RIGHT: DESKTOP CTAs + THEME TOGGLE */}
         <div className="hidden md:flex items-center gap-3">
-          <Link
-            to={`${baseUrl}/login`}
-            className="px-4 py-2.5 rounded-xl font-semibold text-xs border border-slate-200 hover:bg-slate-50 text-slate-700 inline-flex items-center gap-2 transition-colors"
-          >
-            <LogIn className="w-4 h-4" />
-            Login
-          </Link>
+          <ThemeToggle />
 
-          <Link
-            to={`${baseUrl}/register`}
-            style={{ backgroundColor: academy.theme.primaryColor }}
-            className="px-5 py-2.5 rounded-xl font-semibold text-xs text-white hover:opacity-90 transition-opacity shadow-xs inline-flex items-center"
+          {isAuthenticated ? (
+            <div className="flex items-center gap-2">
+              <Avatar src={student?.avatarUrl} name={student?.fullName || student?.email} size="xs" />
+              <span className="text-[11px] font-semibold text-slate-700 dark:text-[#CBD5E1]">
+                {student?.fullName || student?.email}
+              </span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="px-3.5 py-2 rounded-xl font-semibold text-xs border border-slate-200 dark:border-[#263244] hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Logout</span>
+              </button>
+            </div>
+          ) : (
+            <>
+              <Link
+                to={`${baseUrl}/login`}
+                className="px-3.5 py-2 rounded-xl font-semibold text-xs border border-slate-200 dark:border-[#263244] hover:bg-slate-50 dark:hover:bg-[#172033] text-slate-700 dark:text-[#CBD5E1] inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Login</span>
+              </Link>
+
+              <Link
+                to={`${baseUrl}/register`}
+                style={{ backgroundColor: academy.theme?.primaryColor || '#2563EB' }}
+                className="px-4 py-2 rounded-xl font-semibold text-xs text-white hover:opacity-90 transition-opacity shadow-2xs inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Register</span>
+              </Link>
+            </>
+          )}
+        </div>
+
+        {/* MOBILE RIGHT SIDE: THEME TOGGLE + MENU BUTTON */}
+        <div className="flex items-center gap-2 md:hidden">
+          <ThemeToggle />
+
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            aria-label="Toggle menu"
+            aria-expanded={mobileMenuOpen}
+            className="w-10 h-10 flex items-center justify-center shrink-0 bg-transparent border border-slate-200 dark:border-[#263244] rounded-xl text-slate-800 dark:text-[#F8FAFC] hover:bg-slate-100 dark:hover:bg-[#172033] cursor-pointer"
           >
-            Enroll Now
-          </Link>
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
       </div>
 
       {/* MOBILE NAVIGATION PANEL */}
       {mobileMenuOpen && (
-        <div className="md:hidden absolute top-full left-0 right-0 w-full z-50 bg-white border-t border-slate-200 shadow-xl animate-in slide-in-from-top-2 duration-200">
+        <div className="md:hidden absolute top-full left-0 right-0 w-full z-50 bg-white dark:bg-[#111827] border-b border-slate-200 dark:border-[#263244] shadow-xl text-left animate-in slide-in-from-top-2 duration-200">
           <nav className="px-4 py-4 space-y-2 max-h-[calc(100vh-5rem)] overflow-y-auto">
             {navLinks.map((link) => {
               const Icon = link.icon;
@@ -134,11 +166,11 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
                   key={link.href}
                   to={link.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 w-full min-h-[44px] px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all"
-                  style={{
-                    backgroundColor: isActive ? academy.theme.primarySoft : undefined,
-                    color: isActive ? academy.theme.primaryColor : '#334155',
-                  }}
+                  className={`flex items-center gap-3 w-full min-h-[44px] px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    isActive
+                      ? 'bg-blue-50 dark:bg-[#172033] text-[#2563EB] dark:text-[#60A5FA]'
+                      : 'text-slate-700 dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-[#172033]'
+                  }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
                   <span>{link.label}</span>
@@ -146,24 +178,41 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
               );
             })}
 
-            <div className="pt-3 border-t border-slate-100 space-y-2">
-              <Link
-                to={`${baseUrl}/login`}
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-center gap-2 w-full min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                <LogIn className="w-4 h-4" />
-                <span>Login</span>
-              </Link>
+            <div className="pt-3 border-t border-slate-100 dark:border-[#263244] space-y-2">
+              {isAuthenticated ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="flex items-center justify-center gap-2 w-full min-h-[44px] px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-900/50 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Logout ({student?.fullName || student?.email})</span>
+                </button>
+              ) : (
+                <>
+                  <Link
+                    to={`${baseUrl}/login`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-center gap-2 w-full min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#263244] text-xs font-semibold text-slate-700 dark:text-[#CBD5E1] hover:bg-slate-50 dark:hover:bg-[#172033]"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>Login</span>
+                  </Link>
 
-              <Link
-                to={`${baseUrl}/register`}
-                onClick={() => setMobileMenuOpen(false)}
-                style={{ backgroundColor: academy.theme.primaryColor }}
-                className="flex items-center justify-center w-full min-h-[44px] px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-xs"
-              >
-                Enroll
-              </Link>
+                  <Link
+                    to={`${baseUrl}/register`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    style={{ backgroundColor: academy.theme?.primaryColor || '#2563EB' }}
+                    className="flex items-center justify-center gap-2 w-full min-h-[44px] px-4 py-2.5 rounded-xl text-xs font-semibold text-white shadow-2xs"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Register</span>
+                  </Link>
+                </>
+              )}
             </div>
           </nav>
         </div>
@@ -171,4 +220,3 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
     </header>
   );
 };
-
