@@ -8,6 +8,7 @@ import { Button } from '../../../components/ui/Button';
 import { StudentStateCard } from '../../../components/ui/StudentStateCard';
 import { resolveLessonType } from '../utils/mediaResolver';
 import { useStudentCourseCurriculum } from '../hooks/useStudentCourseCurriculum';
+import { resolveMediaUrl } from '../../../services/apiClient';
 import { calculateLessonAccessMap } from '../utils/unlockResolver';
 
 export const LessonPlayerPage: React.FC = () => {
@@ -71,7 +72,31 @@ export const LessonPlayerPage: React.FC = () => {
       .then((res) => {
         if (!isMounted) return;
         const detailObj = res?.lesson || res;
-        setSelectedLessonDetail(detailObj);
+        const rawResources = res?.resources || detailObj?.resources || [];
+        const normalizedResources = Array.isArray(rawResources)
+          ? rawResources.map((r: any, idx: number) => ({
+              resourceUuid: String(r.id || r.resourceUuid || `res-${idx}`),
+              academyUuid: academyUuid || '',
+              courseUuid: courseUuid || '',
+              lessonUuid: selectedLessonSummary.id,
+              scope: 'lesson' as const,
+              title: r.title || 'Resource Attachment',
+              fileName: r.fileName || r.file_name || r.title || 'Attachment',
+              fileUrl: resolveMediaUrl(r.url || r.file_url || r.fileUrl),
+              mimeType: r.mimeType || r.mime_type || 'application/pdf',
+              fileSize: r.fileSize || r.file_size || r.size_bytes || 0,
+              allowView: r.allowView ?? r.allow_view ?? true,
+              allowDownload: r.allowDownload ?? r.allow_download ?? true,
+              status: 'active' as const,
+              createdAt: r.created_at || new Date().toISOString(),
+              updatedAt: r.updated_at || new Date().toISOString(),
+            }))
+          : [];
+
+        setSelectedLessonDetail({
+          ...detailObj,
+          resources: normalizedResources,
+        });
       })
       .catch((err: any) => {
         if (!isMounted) return;

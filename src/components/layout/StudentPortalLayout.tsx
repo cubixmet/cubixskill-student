@@ -27,6 +27,8 @@ import { useAuthStore } from '../../stores/auth.store';
 import { saveLastActiveCourse } from '../../utils/last-active-course.utility';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { Avatar } from '../ui/Avatar';
+import { useCourseFeatures } from '../../hooks/useCourseFeatures';
+import { COURSE_FEATURE_KEYS } from '../../constants/courseFeatures.constants';
 
 export const StudentPortalLayout: React.FC = () => {
   const { academyUuid = '550e8400-e29b-41d4-a716-446655440000', courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501' } = useParams<{
@@ -74,6 +76,8 @@ export const StudentPortalLayout: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const { isFeatureEnabled } = useCourseFeatures(courseUuid);
+
   const theme = academy?.theme || {
     primaryColor: '#2563EB',
     primaryHover: '#1D4ED8',
@@ -84,19 +88,21 @@ export const StudentPortalLayout: React.FC = () => {
 
   const navItems = [
     { label: 'My Course', path: `${baseUrl}/overview`, icon: BookOpen },
-    { label: 'Continue Learning', path: `${baseUrl}/learn`, icon: PlayCircle },
-    { label: 'Curriculum', path: `${baseUrl}/curriculum`, icon: ListTree },
-    { label: 'Live Classes', path: `${baseUrl}/live-classes`, icon: Video, featureKey: 'liveClasses' },
-    { label: 'Discussions', path: `${baseUrl}/discussions`, icon: MessageSquare, featureKey: 'discussions' },
-    { label: 'Personal Chat', path: `${baseUrl}/personal-chat`, icon: MessageCircle },
-    { label: 'Certificates', path: `${baseUrl}/certificates`, icon: Award, featureKey: 'certificates' },
+    { label: 'Continue Learning', path: `${baseUrl}/learn`, icon: PlayCircle, featureKey: COURSE_FEATURE_KEYS.LESSONS },
+    { label: 'Curriculum', path: `${baseUrl}/curriculum`, icon: ListTree, featureKey: COURSE_FEATURE_KEYS.LESSONS },
+    { label: 'Fees & Payments', path: `${baseUrl}/fees`, icon: FileCheck, featureKey: COURSE_FEATURE_KEYS.FEE_COLLECTION },
+    { label: 'Announcements', path: `${baseUrl}/announcements`, icon: Bell, featureKey: COURSE_FEATURE_KEYS.COURSE_ANNOUNCEMENT },
+    { label: 'Live Classes', path: `${baseUrl}/live-classes`, icon: Video, featureKey: COURSE_FEATURE_KEYS.LIVE_CLASS },
+    { label: 'Discussions', path: `${baseUrl}/discussions`, icon: MessageSquare, featureKey: COURSE_FEATURE_KEYS.COURSE_DISCUSSION },
+    { label: 'Personal Chat', path: `${baseUrl}/personal-chat`, icon: MessageCircle, featureKey: COURSE_FEATURE_KEYS.ONE_TO_ONE_SESSION },
+    { label: 'Certificates', path: `${baseUrl}/certificates`, icon: Award, featureKey: COURSE_FEATURE_KEYS.COMPLETION_CERTIFICATE },
     { label: 'Notifications', path: `${baseUrl}/notifications`, icon: Bell },
     { label: 'Profile & Settings', path: `${baseUrl}/settings`, icon: Settings },
   ];
 
   const visibleNavItems = navItems.filter((item) => {
     if (!item.featureKey) return true;
-    return course?.features?.[item.featureKey as keyof typeof course.features] !== false;
+    return isFeatureEnabled(item.featureKey);
   });
 
   const isNavItemActive = (itemPath: string) => {
@@ -348,7 +354,7 @@ export const StudentPortalLayout: React.FC = () => {
 
         {/* ROUTE CONTENT PAGE AREA */}
         <main className={`flex-1 overflow-y-auto hide-scrollbar ${
-          location.pathname.includes('/personal-chat')
+          location.pathname.includes('/personal-chat') || location.pathname.includes('/video-session')
             ? 'p-0 sm:p-4 md:p-6 pb-0 md:pb-6'
             : 'p-4 md:p-6 pb-[88px] md:pb-6'
         }`}>
@@ -356,8 +362,8 @@ export const StudentPortalLayout: React.FC = () => {
         </main>
       </div>
 
-      {/* 3. MOBILE BOTTOM NAVIGATION (<768px) - Hidden on /personal-chat */}
-      {!location.pathname.includes('/personal-chat') && (
+      {/* 3. MOBILE BOTTOM NAVIGATION (<768px) - Hidden on /personal-chat & /video-session */}
+      {!location.pathname.includes('/personal-chat') && !location.pathname.includes('/video-session') && (
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border-t border-slate-200/90 dark:border-[#263244] pb-[env(safe-area-inset-bottom)] shadow-lg font-sans text-[10px] font-semibold">
           <div className="grid h-16 grid-cols-5 items-center">
             <button
@@ -384,17 +390,19 @@ export const StudentPortalLayout: React.FC = () => {
               <span>Learn</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => navigate(`${baseUrl}/live-classes`)}
-              className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer"
-              style={{
-                color: isNavItemActive(`${baseUrl}/live-classes`) ? theme.primaryColor : '#64748B',
-              }}
-            >
-              <Video className="w-4 h-4" />
-              <span>Live</span>
-            </button>
+            {isFeatureEnabled('liveClasses') && (
+              <button
+                type="button"
+                onClick={() => navigate(`${baseUrl}/live-classes`)}
+                className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer"
+                style={{
+                  color: isNavItemActive(`${baseUrl}/live-classes`) ? theme.primaryColor : '#64748B',
+                }}
+              >
+                <Video className="w-4 h-4" />
+                <span>Live</span>
+              </button>
+            )}
 
             <button
               type="button"

@@ -1,10 +1,10 @@
 export const API_ENDPOINTS = {
   auth: {
-    me: '/api/v1/auth/me/',
-    login: '/api/v1/auth/login/',
-    logout: '/api/v1/auth/logout/',
+    me: '/api/v1/auth/student/me/',
+    login: '/api/v1/auth/student/login/',
+    logout: '/api/v1/auth/student/logout/',
     registerStudent: '/api/v1/auth/register/student/',
-    refreshToken: '/api/v1/auth/token/refresh/',
+    refreshToken: '/api/v1/auth/student/refresh/',
     forgotPassword: '/api/v1/auth/password/forgot/',
     setupPassword: '/api/v1/auth/password/setup/',
     resendSetupEmail: '/api/v1/auth/password/setup/resend/',
@@ -24,7 +24,7 @@ export const API_ENDPOINTS = {
   courses: {
     list: '/api/v1/courses/courses/',
     detail: (courseUuid: string) => `/api/v1/courses/courses/${courseUuid}/`,
-    modules: '/api/v1/courses/course-modules/',
+    modules: (courseUuid: string) => `/api/v1/modules/courses/${courseUuid}/modules/`,
   },
   certificates: {
     studentCertificates: '/api/v1/certificates/student/certificates/',

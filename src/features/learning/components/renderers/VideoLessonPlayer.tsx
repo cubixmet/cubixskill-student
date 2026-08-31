@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import Hls from 'hls.js';
 import { AlertCircle, ExternalLink } from 'lucide-react';
 import type { CourseLesson } from '../../../../stores/course.store';
 import { resolveVideoSource } from '../../utils/videoResolver';
@@ -10,24 +11,86 @@ interface Props {
 
 export const VideoLessonPlayer: React.FC<Props> = ({ lesson }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
 
   const videoSource = resolveVideoSource(lesson);
+  const src = videoSource?.url || '';
+  const isHls = videoSource?.kind === 'hls' || src.includes('.m3u8');
 
   useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !src) return;
+
     setVideoError(null);
-    return () => {
-      if (videoRef.current) {
-        try {
-          videoRef.current.pause();
-          videoRef.current.removeAttribute('src');
-          videoRef.current.load();
-        } catch (_) {
-          // Cleanup error handling
+
+    if (isHls) {
+      if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native HLS support (Safari / iOS)
+        video.src = src;
+      } else if (Hls.isSupported()) {
+        // HLS.js for Chrome, Firefox, Edge, etc.
+        if (hlsRef.current) {
+          hlsRef.current.destroy();
         }
+
+        const hls = new Hls({
+          autoStartLoad: true,
+          enableWorker: true,
+        });
+        hlsRef.current = hls;
+
+        hls.loadSource(src);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          if (data.fatal) {
+            console.error('[HLS Fatal Error]', data);
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.warn('[HLS] Network error encountered, attempting recovery...');
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.warn('[HLS] Media error encountered, attempting recovery...');
+                hls.recoverMediaError();
+                break;
+              default:
+                hls.destroy();
+                setVideoError('Unable to play HLS video stream.');
+                break;
+            }
+          }
+        });
+
+        return () => {
+          if (hlsRef.current) {
+            hlsRef.current.destroy();
+            hlsRef.current = null;
+          }
+        };
+      } else {
+        setVideoError('HLS streaming is not supported in this browser.');
+      }
+    } else {
+      // Direct MP4 / WebM / OGG playback
+      video.src = src;
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+      if (video) {
+        try {
+          video.pause();
+          video.removeAttribute('src');
+          video.load();
+        } catch (_) {}
       }
     };
-  }, [lesson.id, lesson.mediaUrl, lesson.externalUrl]);
+  }, [src, isHls, lesson.id]);
 
   if (!videoSource || !videoSource.url) {
     return (
@@ -94,10 +157,7 @@ export const VideoLessonPlayer: React.FC<Props> = ({ lesson }) => {
         onLoadedMetadata={() => setVideoError(null)}
         onError={() => setVideoError('Unable to load or play this media stream.')}
         className="absolute inset-0 w-full h-full object-contain"
-      >
-        <source src={videoSource.url} type={videoSource.mimeType || 'video/mp4'} />
-        Your browser does not support HTML5 video playback.
-      </video>
+      />
     </div>
   );
 };

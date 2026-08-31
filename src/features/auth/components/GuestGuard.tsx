@@ -13,7 +13,7 @@ export const GuestGuard: React.FC<{ children: React.ReactNode }> = ({ children }
   }
 
   if (isAuthenticated) {
-    const targetUrl = academyUuid ? `/${academyUuid}/dashboard` : '/student/academies';
+    const targetUrl = academyUuid ? `/student/academies/${academyUuid}` : '/student/academies';
     return <Navigate to={targetUrl} replace />;
   }
 

@@ -1,4 +1,5 @@
 import type { CourseLesson, LessonType } from '../../../stores/course.store';
+import { resolveMediaUrl } from '../../../services/apiClient';
 
 /**
  * Validates if a given URL is a safe http or https URL.
@@ -10,7 +11,7 @@ export function isSafeHttpUrl(url?: string): boolean {
   if (trimmed.startsWith('javascript:') || trimmed.startsWith('data:') || trimmed.startsWith('file:')) {
     return false;
   }
-  return trimmed.startsWith('http://') || trimmed.startsWith('https://');
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/');
 }
 
 /**
@@ -58,31 +59,105 @@ export function resolveLessonType(lesson?: any): LessonType {
 /**
  * Resolves normalized media parameters for a lesson.
  */
-export function resolveLessonMedia(lesson?: CourseLesson) {
+export function resolveLessonMedia(lesson?: any) {
   const type = resolveLessonType(lesson);
-  const rawMediaUrl = lesson?.mediaUrl;
-  const isSafe = isSafeHttpUrl(rawMediaUrl);
+  const content = lesson?.content || {};
+  const primaryMedia = lesson?.primary_media || lesson?.primaryMedia || {};
+  const firstMediaFile = (lesson?.media_files || lesson?.mediaFiles || [])[0]?.media_file || {};
 
-  const defaultMediaUrls: Record<LessonType, string> = {
-    video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    audio: '',
-    stream: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-    image: '',
-    document: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    url: 'https://react.dev',
-    text: '',
-    test: '',
-    assignment: '',
-  };
+  const rawUrl = (
+    lesson?.document_url ||
+    lesson?.documentUrl ||
+    lesson?.video_url ||
+    lesson?.videoUrl ||
+    lesson?.audio_url ||
+    lesson?.audioUrl ||
+    lesson?.stream_url ||
+    lesson?.mediaUrl ||
+    lesson?.media_url ||
+    lesson?.external_url ||
+    lesson?.externalUrl ||
+    primaryMedia?.url ||
+    primaryMedia?.file ||
+    firstMediaFile?.url ||
+    firstMediaFile?.file ||
+    content?.documentUrl ||
+    content?.externalUrl ||
+    content?.mediaUrl ||
+    content?.fileUrl ||
+    ''
+  ).trim();
 
-  const mediaUrl = isSafe ? rawMediaUrl! : defaultMediaUrls[type] || '';
+  const resolvedUrl = resolveMediaUrl(rawUrl);
+  const isSafe = isSafeHttpUrl(resolvedUrl);
 
   return {
     type,
-    mediaUrl,
+    mediaUrl: isSafe ? resolvedUrl : '',
+    rawUrl,
     isSafe,
-    thumbnailUrl: lesson?.thumbnailUrl || '',
-    mimeType: lesson?.mimeType || (type === 'video' ? 'video/mp4' : undefined),
-    allowDownload: lesson?.allowDownload ?? true,
+    thumbnailUrl: lesson?.thumbnailUrl || lesson?.thumbnail_url || '',
+    mimeType: lesson?.mimeType || lesson?.mime_type || primaryMedia?.mime_type || firstMediaFile?.mime_type || (type === 'video' ? 'video/mp4' : undefined),
+    allowDownload: lesson?.allowDownload ?? lesson?.allow_download ?? true,
+  };
+}
+
+export type DocumentKind = 'pdf' | 'image' | 'text' | 'download';
+
+export interface DocumentSource {
+  url: string;
+  kind: DocumentKind;
+  mimeType?: string;
+  filename?: string;
+  allowDownload: boolean;
+}
+
+export function resolveLessonDocumentSource(lesson?: any): DocumentSource | null {
+  if (!lesson) return null;
+  const media = resolveLessonMedia(lesson);
+  if (!media.mediaUrl) return null;
+
+  const url = media.mediaUrl;
+  const mimeType = (media.mimeType || '').toLowerCase();
+  const urlLower = url.toLowerCase();
+
+  let kind: DocumentKind = 'download';
+
+  if (mimeType === 'application/pdf' || urlLower.includes('.pdf')) {
+    kind = 'pdf';
+  } else if (
+    mimeType.startsWith('image/') ||
+    urlLower.endsWith('.png') ||
+    urlLower.endsWith('.jpg') ||
+    urlLower.endsWith('.jpeg') ||
+    urlLower.endsWith('.svg') ||
+    urlLower.endsWith('.webp')
+  ) {
+    kind = 'image';
+  } else if (
+    mimeType.startsWith('text/') ||
+    urlLower.endsWith('.txt')
+  ) {
+    kind = 'text';
+  } else {
+    kind = 'download';
+  }
+
+  const primaryMedia = lesson?.primary_media || lesson?.primaryMedia || {};
+  const firstMediaFile = (lesson?.media_files || lesson?.mediaFiles || [])[0]?.media_file || {};
+  const filename =
+    primaryMedia?.original_filename ||
+    primaryMedia?.display_name ||
+    firstMediaFile?.original_filename ||
+    firstMediaFile?.display_name ||
+    lesson?.title ||
+    'Document File';
+
+  return {
+    url,
+    kind,
+    mimeType: media.mimeType,
+    filename,
+    allowDownload: media.allowDownload,
   };
 }

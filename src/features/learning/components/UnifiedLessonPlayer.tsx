@@ -36,6 +36,7 @@ import { useResourceStore } from '../../../stores/resource.store';
 import { LessonResourceCard } from './LessonResourceCard';
 import { Button } from '../../../components/ui/Button';
 import { LessonStatusBadge } from '../../../components/ui/LessonStatusBadge';
+import { RichTextRenderer } from '../../../components/ui/RichTextRenderer';
 
 interface Props {
   lesson: CourseLesson;
@@ -52,6 +53,9 @@ interface Props {
   onNavigateLesson?: (lessonId: string) => void;
 }
 
+import { useCourseFeatures } from '../../../hooks/useCourseFeatures';
+import { COURSE_FEATURE_KEYS } from '../../../constants/courseFeatures.constants';
+
 export const UnifiedLessonPlayer: React.FC<Props> = ({
   lesson,
   moduleTitle = 'Module 1',
@@ -67,6 +71,14 @@ export const UnifiedLessonPlayer: React.FC<Props> = ({
   onNavigateLesson,
 }) => {
   const navigate = useNavigate();
+  const { isFeatureEnabled } = useCourseFeatures(courseUuid);
+  if (!isFeatureEnabled(COURSE_FEATURE_KEYS.LESSONS)) {
+    return (
+      <div className="p-8 text-center text-slate-500 font-sans">
+        Lessons feature is disabled for this course.
+      </div>
+    );
+  }
   const lessonType = resolveLessonType(lesson);
 
   const [isCompleting, setIsCompleting] = useState(false);
@@ -162,6 +174,30 @@ export const UnifiedLessonPlayer: React.FC<Props> = ({
       );
     }
 
+    if (lessonType === 'assignment' && !isFeatureEnabled('assignments')) {
+      return (
+        <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#263244] rounded-3xl p-8 text-center space-y-4 max-w-xl mx-auto font-sans">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mx-auto">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white">Assignments Feature Disabled</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Assignments are not enabled for this course by the instructor.</p>
+        </div>
+      );
+    }
+
+    if (lessonType === 'test' && !isFeatureEnabled('quizzes')) {
+      return (
+        <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#263244] rounded-3xl p-8 text-center space-y-4 max-w-xl mx-auto font-sans">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mx-auto">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white">Quizzes Feature Disabled</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Quizzes are not enabled for this course by the instructor.</p>
+        </div>
+      );
+    }
+
     switch (lessonType) {
       case 'video':
         return <VideoLessonPlayer lesson={lesson} />;
@@ -178,7 +214,7 @@ export const UnifiedLessonPlayer: React.FC<Props> = ({
       case 'text':
         return <TextLessonViewer lesson={lesson} />;
       case 'test':
-        return <TestLessonRenderer lesson={lesson} />;
+        return <TestLessonRenderer lesson={lesson} onMarkComplete={handleCompleteAction} />;
       case 'assignment':
         return <AssignmentLessonRenderer lesson={lesson} />;
       default:
@@ -191,20 +227,34 @@ export const UnifiedLessonPlayer: React.FC<Props> = ({
   };
 
   return (
-    <div className="space-y-5 font-sans text-xs text-left max-w-5xl mx-auto w-full">
+    <div className="space-y-5 font-sans text-xs text-left max-w-5xl mx-auto w-full box-border min-w-0">
       {/* 1. UNIFIED LESSON HEADER */}
-      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#263244] rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xs space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-[#263244] pb-2.5">
-          <span className="font-semibold text-[11px] text-slate-500 dark:text-[#94A3B8] uppercase tracking-wider truncate max-w-md block">
+      <div
+        style={{
+          backgroundColor: 'var(--surface)',
+          borderColor: 'var(--border)',
+          color: 'var(--text-primary)',
+        }}
+        className="border rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xs space-y-2 box-border min-w-0"
+      >
+        <div style={{ borderColor: 'var(--border)' }} className="flex flex-wrap items-center justify-between gap-2 border-b pb-2.5">
+          <span style={{ color: 'var(--text-muted)' }} className="font-semibold text-[11px] uppercase tracking-wider truncate max-w-md block">
             {moduleTitle}
           </span>
           <div className="flex items-center gap-2">
             {isDemoStudent && (
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700/50">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/20">
                 Demo Mode
               </span>
             )}
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-[#60A5FA] border border-blue-500/20 uppercase tracking-wide">
+            <span
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--brand-primary) 10%, var(--surface))',
+                borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, var(--border))',
+                color: 'var(--brand-primary)',
+              }}
+              className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold border uppercase tracking-wide"
+            >
               {lessonType}
             </span>
           </div>
@@ -212,18 +262,18 @@ export const UnifiedLessonPlayer: React.FC<Props> = ({
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-1 min-w-0 flex-1">
-            <h1 className="text-lg sm:text-xl font-semibold text-slate-900 dark:text-[#F8FAFC] tracking-tight leading-snug break-words">
+            <h1 style={{ color: 'var(--text-primary)' }} className="text-lg sm:text-xl font-semibold tracking-tight leading-snug break-words">
               {lesson.title}
             </h1>
-            <div className="flex flex-wrap items-center gap-2.5 text-slate-500 dark:text-[#94A3B8] font-medium text-xs">
-              <span className="inline-flex items-center gap-1.5 font-medium text-slate-700 dark:text-[#CBD5E1]">
+            <div style={{ color: 'var(--text-secondary)' }} className="flex flex-wrap items-center gap-2.5 font-medium text-xs">
+              <span className="inline-flex items-center gap-1.5 font-medium">
                 {renderTypeIcon(lessonType)}
                 <span className="capitalize">{lessonType} Lesson</span>
               </span>
               {lesson.duration && (
                 <>
-                  <span className="text-slate-300 dark:text-[#334155]">•</span>
-                  <span className="inline-flex items-center gap-1 text-slate-500 dark:text-[#94A3B8] font-normal">
+                  <span style={{ color: 'var(--border)' }}>•</span>
+                  <span style={{ color: 'var(--text-muted)' }} className="inline-flex items-center gap-1 font-normal">
                     <Clock className="w-3.5 h-3.5 shrink-0" />
                     <span>{lesson.duration}</span>
                   </span>
@@ -252,40 +302,43 @@ export const UnifiedLessonPlayer: React.FC<Props> = ({
       )}
 
       {/* 2. LESSON MEDIA CONTENT RENDERER */}
-      <div className="w-full">{renderLessonContent()}</div>
+      <div className="w-full min-w-0 max-w-full box-border">{renderLessonContent()}</div>
 
       {/* 3. LESSON DESCRIPTION & RESOURCES SECTION */}
       {canAccess && (
-        <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#263244] rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xs space-y-4">
+        <div
+          style={{
+            backgroundColor: 'var(--surface)',
+            borderColor: 'var(--border)',
+            color: 'var(--text-primary)',
+          }}
+          className="border rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xs space-y-4 box-border min-w-0"
+        >
           {lesson.description && (
             <div className="space-y-1">
-              <h3 className="font-bold text-xs text-slate-900 dark:text-[#F8FAFC] uppercase tracking-wider">Lesson Description</h3>
-              <p className="text-slate-600 dark:text-[#CBD5E1] text-xs sm:text-sm leading-relaxed break-words whitespace-pre-line">
-                {lesson.description}
-              </p>
+              <h3 style={{ color: 'var(--text-primary)' }} className="font-bold text-xs uppercase tracking-wider">Lesson Description</h3>
+              <RichTextRenderer html={lesson.description} />
             </div>
           )}
 
           {/* CONTEXTUAL LESSON RESOURCES */}
-          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-[#263244]">
-            <h3 className="font-bold text-xs text-slate-900 dark:text-[#F8FAFC] uppercase tracking-wider">Lesson Attachments &amp; Resources</h3>
-            {Array.isArray(lesson.resources) && lesson.resources.length > 0 ? (
-              <div className="space-y-2">
+          {Array.isArray(lesson.resources) && lesson.resources.length > 0 && (
+            <div style={{ borderColor: 'var(--border)' }} className="space-y-3 pt-4 border-t">
+              <h3 style={{ color: 'var(--text-primary)' }} className="font-bold text-xs uppercase tracking-wider flex items-center gap-2">
+                <FileText style={{ color: 'var(--brand-primary)' }} className="w-4 h-4" />
+                <span>Lesson Resources &amp; Attachments ({lesson.resources.length})</span>
+              </h3>
+              <div className="space-y-2.5">
                 {lesson.resources.map((res: any, idx: number) => (
-                  <div key={res.id || idx} className="p-3 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-[#263244] flex items-center justify-between">
-                    <span className="font-medium text-slate-900 dark:text-[#F8FAFC]">{res.title}</span>
-                    {res.url && (
-                      <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-[var(--brand-primary,#2563EB)] font-semibold hover:underline">
-                        View Resource
-                      </a>
-                    )}
-                  </div>
+                  <LessonResourceCard
+                    key={res.resourceUuid || res.id || idx}
+                    resource={res}
+                    enrollment={enrollment}
+                  />
                 ))}
               </div>
-            ) : (
-              <p className="text-slate-400 dark:text-[#94A3B8] text-xs font-medium">No additional downloadable resource files attached to this unit.</p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

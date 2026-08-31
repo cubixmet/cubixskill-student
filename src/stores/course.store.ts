@@ -205,12 +205,12 @@ export function mapBackendCourseToEntity(item: any): CourseEntity {
     requirements: item.requirements || [],
     modules: item.modules || [],
     features: {
-      assignments: true,
-      quizzes: true,
-      liveClasses: true,
-      certificates: true,
-      announcements: true,
-      discussions: true,
+      assignments: item.features?.assignments ?? item.features?.LESSONS ?? true,
+      quizzes: item.features?.quizzes ?? item.features?.LESSONS ?? true,
+      liveClasses: item.features?.liveClasses ?? item.features?.live_classes ?? item.features?.LIVE_CLASS ?? true,
+      certificates: item.features?.certificates ?? item.features?.COMPLETION_CERTIFICATE ?? true,
+      announcements: item.features?.announcements ?? item.features?.COURSE_ANNOUNCEMENT ?? true,
+      discussions: item.features?.discussions ?? item.features?.COURSE_DISCUSSION ?? true,
     },
   };
 }

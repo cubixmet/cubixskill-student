@@ -18,6 +18,8 @@ import { CourseTabs } from '../components/CourseTabs';
 import { LearningProgressCard } from '../components/LearningProgressCard';
 
 import { buildStudentCourseLearnPath, buildStudentCourseCurriculumPath, isValidUuid } from '../../../utils/routeBuilder';
+import { useCourseFeatures } from '../../../hooks/useCourseFeatures';
+import { COURSE_FEATURE_KEYS } from '../../../constants/courseFeatures.constants';
 
 const OverviewSkeleton: React.FC = () => (
   <div className="space-y-6 font-sans text-xs text-left max-w-5xl mx-auto w-full px-1 sm:px-0">
@@ -63,6 +65,7 @@ export const OverviewPage: React.FC = () => {
   }>();
 
   const navigate = useNavigate();
+  const { isFeatureEnabled } = useCourseFeatures(courseUuid);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -217,38 +220,42 @@ export const OverviewPage: React.FC = () => {
             </div>
 
             {/* MAIN ACTIONS */}
-            <div className="pt-3 border-t border-slate-100 dark:border-[#263244] grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-              <Button
-                onClick={handleStartOrContinue}
-                className="w-full font-semibold justify-center text-white min-h-[44px] rounded-xl shadow-2xs cursor-pointer bg-[#2563EB] hover:bg-[#1D4ED8]"
-                leftIcon={<PlayCircle className="w-4 h-4 text-white shrink-0" />}
-              >
-                {percentageNum > 0 && percentageNum < 100
-                  ? 'Continue Learning'
-                  : percentageNum === 100
-                  ? 'Review Course'
-                  : 'Start Course'}
-              </Button>
+            {isFeatureEnabled(COURSE_FEATURE_KEYS.LESSONS) && (
+              <div className="pt-3 border-t border-slate-100 dark:border-[#263244] grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                <Button
+                  onClick={handleStartOrContinue}
+                  className="w-full font-semibold justify-center text-white min-h-[44px] rounded-xl shadow-2xs cursor-pointer bg-[#2563EB] hover:bg-[#1D4ED8]"
+                  leftIcon={<PlayCircle className="w-4 h-4 text-white shrink-0" />}
+                >
+                  {percentageNum > 0 && percentageNum < 100
+                    ? 'Continue Learning'
+                    : percentageNum === 100
+                    ? 'Review Course'
+                    : 'Start Course'}
+                </Button>
 
-              <Button
-                variant="outline"
-                onClick={() => navigate(buildStudentCourseCurriculumPath(academyUuid, courseUuid))}
-                leftIcon={<BookOpen className="w-4 h-4 text-slate-700 dark:text-[#CBD5E1] shrink-0" />}
-                className="w-full font-semibold justify-center min-h-[44px] rounded-xl border-slate-300 dark:border-[#334155] bg-white dark:bg-[#172033] text-slate-800 dark:text-[#F8FAFC] hover:bg-slate-100 dark:hover:bg-[#1E293B] shadow-2xs cursor-pointer"
-              >
-                View Curriculum
-              </Button>
-            </div>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(buildStudentCourseCurriculumPath(academyUuid, courseUuid))}
+                  leftIcon={<BookOpen className="w-4 h-4 text-slate-700 dark:text-[#CBD5E1] shrink-0" />}
+                  className="w-full font-semibold justify-center min-h-[44px] rounded-xl border-slate-300 dark:border-[#334155] bg-white dark:bg-[#172033] text-slate-800 dark:text-[#F8FAFC] hover:bg-slate-100 dark:hover:bg-[#1E293B] shadow-2xs cursor-pointer"
+                >
+                  View Curriculum
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </Card>
 
       {/* 4. DYNAMIC PROGRESS SUMMARY CARD */}
-      <LearningProgressCard
-        completedLessons={completedLessonsNum}
-        totalLessons={totalLessonsNum}
-        percentage={percentageNum}
-      />
+      {isFeatureEnabled(COURSE_FEATURE_KEYS.LESSONS) && (
+        <LearningProgressCard
+          completedLessons={completedLessonsNum}
+          totalLessons={totalLessonsNum}
+          percentage={percentageNum}
+        />
+      )}
 
       {/* 5. ABOUT THIS COURSE & WHAT YOU'LL LEARN */}
       <Card padding="md" className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#263244] rounded-2xl shadow-2xs space-y-6 text-left">

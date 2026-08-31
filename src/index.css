@@ -138,3 +138,32 @@ input:-webkit-autofill:active {
   outline: 3px solid var(--brand-primary, #2563EB);
   outline-offset: 2px;
 }
+
+/* Audio Player Native Color Scheme & Shell Styling */
+.dark audio,
+.company-theme-dark audio {
+  color-scheme: dark;
+}
+
+.light audio,
+.company-theme-light audio {
+  color-scheme: light;
+}
+
+.audio-player-shell {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface-secondary);
+  border: 1px solid var(--border);
+  box-sizing: border-box;
+}
+
+.audio-player-shell audio {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}

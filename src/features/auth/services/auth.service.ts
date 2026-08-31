@@ -83,6 +83,7 @@ export const authService = {
     const res = await apiClient.post<any>(API_ENDPOINTS.auth.login, {
       email: credentials.email.trim(),
       password: credentials.password,
+      portal: 'student',
       academy_uuid: credentials.academy_uuid,
     });
 

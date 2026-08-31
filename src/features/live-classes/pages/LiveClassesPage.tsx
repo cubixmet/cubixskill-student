@@ -36,11 +36,21 @@ import { LiveClassCard } from '../components/LiveClassCard';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { CourseTabs } from '../../learning/components/CourseTabs';
 
+import { useCourseFeatures } from '../../../hooks/useCourseFeatures';
+import { COURSE_FEATURE_KEYS } from '../../../constants/courseFeatures.constants';
+import { FeatureDisabledState } from '../../../components/ui/FeatureDisabledState';
+
 export const LiveClassesPage: React.FC = () => {
   const { academyUuid = '550e8400-e29b-41d4-a716-446655440000', courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501' } = useParams<{
     academyUuid: string;
     courseUuid: string;
   }>();
+
+  const { isFeatureEnabled } = useCourseFeatures(courseUuid);
+
+  if (!isFeatureEnabled(COURSE_FEATURE_KEYS.LIVE_CLASS)) {
+    return <FeatureDisabledState featureName="Live Classes" />;
+  }
 
   const navigate = useNavigate();
 

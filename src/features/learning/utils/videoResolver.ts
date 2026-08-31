@@ -14,17 +14,34 @@ export interface ResolvedVideoSource {
 export function resolveVideoSource(lesson?: any): ResolvedVideoSource | null {
   if (!lesson) return null;
 
-  let rawUrl: string = (
-    lesson.media_url ||
-    lesson.mediaUrl ||
-    lesson.external_url ||
-    lesson.externalUrl ||
-    lesson.content_url ||
-    lesson.playback_url ||
-    lesson.video_url ||
-    lesson.media_file?.url ||
-    ''
-  ).trim();
+  const processingMode = String(lesson.processing_mode || lesson.primary_media?.processing_mode || '').toLowerCase();
+
+  let rawUrl = '';
+  if (processingMode === 'direct') {
+    rawUrl = (
+      lesson.original_url ||
+      lesson.video_url ||
+      lesson.videoUrl ||
+      lesson.media_url ||
+      lesson.mediaUrl ||
+      lesson.external_url ||
+      lesson.externalUrl ||
+      ''
+    ).trim();
+  } else {
+    rawUrl = (
+      lesson.stream_url ||
+      lesson.streamUrl ||
+      lesson.video_url ||
+      lesson.videoUrl ||
+      lesson.original_url ||
+      lesson.media_url ||
+      lesson.mediaUrl ||
+      lesson.external_url ||
+      lesson.externalUrl ||
+      ''
+    ).trim();
+  }
 
   // Extract src if full <iframe> snippet was passed
   const iframeSrcMatch = rawUrl.match(/src=["']([^"']+)["']/i);
@@ -92,14 +109,16 @@ export function resolveVideoSource(lesson?: any): ResolvedVideoSource | null {
     };
   }
 
-  // Direct HTML5 Video File (.mp4, .webm, .ogg, uploaded media URL)
+  // Direct HTML5 Video File (.mp4, .webm, .ogg, .mov, uploaded media URL)
   const isDirectFile = (
-    lowerUrl.endsWith('.mp4') ||
-    lowerUrl.endsWith('.webm') ||
-    lowerUrl.endsWith('.ogg') ||
-    lowerUrl.endsWith('.mov') ||
-    mimeType.startsWith('video/') ||
-    lowerUrl.includes('/media/')
+    lowerUrl.includes('.mp4') ||
+    lowerUrl.includes('.webm') ||
+    lowerUrl.includes('.ogg') ||
+    lowerUrl.includes('.mov') ||
+    lowerUrl.includes('/media/') ||
+    lowerUrl.includes('localhost:8000') ||
+    lowerUrl.includes('127.0.0.1:8000') ||
+    mimeType.startsWith('video/')
   );
 
   if (isDirectFile) {
@@ -112,8 +131,13 @@ export function resolveVideoSource(lesson?: any): ResolvedVideoSource | null {
     };
   }
 
-  // Default IFrame Embed for safe URLs
-  if (resolvedUrl.startsWith('http://') || resolvedUrl.startsWith('https://')) {
+  // Fallback Embed ONLY for external third-party URLs (not local media / backend paths)
+  if (
+    (resolvedUrl.startsWith('http://') || resolvedUrl.startsWith('https://')) &&
+    !lowerUrl.includes('/media/') &&
+    !lowerUrl.includes('localhost:8000') &&
+    !lowerUrl.includes('127.0.0.1:8000')
+  ) {
     return {
       rawUrl,
       url: resolvedUrl,

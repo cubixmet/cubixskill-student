@@ -107,8 +107,8 @@ export const AcademyLoginPage: React.FC = () => {
           }
         }
 
-        // 3. Fallback to default student dashboard
-        navigate(`/${academyUuid}/dashboard`, { replace: true });
+        // 3. Fallback to canonical student dashboard/home
+        navigate(`/student/academies/${academyUuid}`, { replace: true });
       }
     } catch (err: any) {
       const errCode = err.response?.data?.code || err.code;

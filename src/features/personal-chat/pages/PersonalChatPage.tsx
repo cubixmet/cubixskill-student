@@ -1,208 +1,372 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Send,
-  Paperclip,
-  FileText,
-  Image as ImageIcon,
   ArrowLeft,
-  X,
   Building2,
-  BookOpen,
-  ChevronDown,
-  Trash2,
-  FileArchive,
-  Download,
-  Eye,
   CheckCheck,
+  RefreshCw,
+  Paperclip,
+  X,
+  FileText,
+  Download,
 } from 'lucide-react';
-import { useAcademyStore } from '../../../stores/academy.store';
-import { useCourseStore } from '../../../stores/course.store';
+import { Button } from '../../../components/ui/Button';
+import { Skeleton } from '../../../components/ui/Skeleton';
+import { apiClient } from '../../../services/apiClient';
 import { useAuthStore } from '../../../stores/auth.store';
-import {
-  usePersonalChatStore,
-  type PersonalMessage,
-  type ChatAttachment,
-  type ChatContext,
-} from '../store/personal-chat.store';
+import { useCourseFeatures } from '../../../hooks/useCourseFeatures';
+import { COURSE_FEATURE_KEYS } from '../../../constants/courseFeatures.constants';
+import { normalizeChatMessage, type NormalizedChatMessage } from '../utils/chatNormalizer';
+
+const inFlightRoomPromises = new Map<string, Promise<any>>();
+
+const getWebSocketUrl = (roomId: string): string => {
+  const envUrl = import.meta.env.VITE_WS_URL;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = import.meta.env.VITE_API_HOST || 'localhost:8000';
+  if (envUrl) {
+    const base = envUrl.replace(/\/ws\/.*$/, '');
+    return `${base}/ws/chat/${roomId}/`;
+  }
+  return `${protocol}//${host}/ws/chat/${roomId}/`;
+};
 
 export const PersonalChatPage: React.FC = () => {
-  const { academyUuid = '550e8400-e29b-41d4-a716-446655440000', courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501' } = useParams<{
+  const { academyUuid, courseUuid } = useParams<{
     academyUuid: string;
     courseUuid: string;
   }>();
 
   const navigate = useNavigate();
+  const currentUser = useAuthStore((state) => state.user);
+  const { isFeatureEnabled, isLoading: isFeatureLoading } = useCourseFeatures(courseUuid);
 
-  const academies = useAcademyStore((state) => state.academies);
-  const courses = useCourseStore((state) => state.courses);
-  const student = useAuthStore((state) => state.student);
+  // Real backend room & messages
+  const [room, setRoom] = useState<any | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const academy = academies.find((a) => a.uuid === academyUuid);
-  const course = courses.find((c) => c.academyUuid === academyUuid && (c.uuid === courseUuid || c.courseUuid === courseUuid));
-  const studentUuid = student?.uuid || 'std-production-1';
-  const theme = academy?.theme || { primaryColor: '#2563EB' };
+  // Socket state
+  const [socketStatus, setSocketStatus] = useState<'connecting' | 'connected' | 'reconnecting' | 'disconnected'>('disconnected');
+  const socketRef = useRef<WebSocket | null>(null);
+  const reconnectAttemptsRef = useRef<number>(0);
+  const reconnectTimerRef = useRef<any>(null);
+  const processedEventIdsRef = useRef<Set<string>>(new Set());
 
-  // Personal Chat Store
-  const conversations = usePersonalChatStore((state) => state.conversations);
-  const messagesMap = usePersonalChatStore((state) => state.messages);
-  const sendMessage = usePersonalChatStore((state) => state.sendMessage);
-  const deleteStudentMessage = usePersonalChatStore((state) => state.deleteStudentMessage);
+  // Academy setting state
+  const [fileUploadEnabled, setFileUploadEnabled] = useState<boolean>(true);
 
-  // Direct Student ↔ Academy Single Conversation
-  const activeConversation =
-    conversations.find((c) => c.studentUuid === studentUuid && c.academyUuid === academyUuid) || conversations[0];
+  // Attachment state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploadingFile, setIsUploadingFile] = useState<boolean>(false);
+  const [uploadedMediaId, setUploadedMediaId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const allMessages: PersonalMessage[] = activeConversation
-    ? messagesMap[activeConversation.uuid] || []
-    : [];
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Message History Pagination State
-  const [displayedCount, setDisplayedCount] = useState<number>(15);
-  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  // Load Academy Profile/Settings
+  useEffect(() => {
+    let mounted = true;
+    apiClient.get('/api/v1/academy/profile/').then((res: any) => {
+      const data = res?.data || res;
+      if (mounted && data) {
+        if (typeof data.personal_chat_file_upload_enabled === 'boolean') {
+          setFileUploadEnabled(data.personal_chat_file_upload_enabled);
+        }
+      }
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, []);
 
-  const visibleMessages = allMessages.slice(Math.max(0, allMessages.length - displayedCount));
-  const hasOlderMessages = allMessages.length > displayedCount;
-
-  // Form State
+  // Form & UI state
   const [messageInput, setMessageInput] = useState('');
-  const [selectedFile, setSelectedFile] = useState<ChatAttachment | null>(null);
-  const [chatContext, setChatContext] = useState<ChatContext | null>({
-    courseTitle: course?.title || 'Full Stack React 19 & Cloud Architecture',
-    lessonTitle: '1.1 React 19 Compiler Mechanics',
-  });
+  const [isSending, setIsSending] = useState(false);
+  const [composerError, setComposerError] = useState<string | null>(null);
 
-  // Scroll & Position Tracking
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const [isNearBottom, setIsNearBottom] = useState(true);
-  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  const [composerError, setComposerError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll to latest message on initial load after skeleton resolve
-  useLayoutEffect(() => {
-    const timer = setTimeout(() => {
-      setIsInitialLoading(false);
-      messagesEndRef.current?.scrollIntoView({ block: 'end' });
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [activeConversation?.uuid]);
+  // 1. Fetch/create personal room & load history (idempotent / in-flight deduped)
+  const loadChatRoom = useCallback(async () => {
+    if (!courseUuid || !currentUser?.id) return;
+    setIsInitialLoading(true);
+    setError(null);
 
-  // Handle scroll events for "isNearBottom" & "Load older" scroll anchoring
-  const handleScroll = () => {
-    if (!messagesContainerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    const nearBottom = distanceFromBottom < 120;
+    try {
+      const roomKey = `${courseUuid}:${currentUser.id}`;
+      let roomPromise = inFlightRoomPromises.get(roomKey);
+      if (!roomPromise) {
+        roomPromise = apiClient.post('/api/v1/chat/rooms/get-or-create-personal/', {
+          course_id: courseUuid,
+          student_id: currentUser.id,
+        }).finally(() => {
+          inFlightRoomPromises.delete(roomKey);
+        });
+        inFlightRoomPromises.set(roomKey, roomPromise);
+      }
 
-    setIsNearBottom(nearBottom);
-    setShowScrollToBottom(!nearBottom && distanceFromBottom > 200);
-  };
+      const res: any = await roomPromise;
+      const roomData = res?.data || res;
+      setRoom(roomData);
 
-  // Scroll to latest message on new message if near bottom
-  useEffect(() => {
-    if (isNearBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }
-  }, [allMessages.length, isNearBottom]);
+      // Load existing message history
+      if (roomData?.id) {
+        const msgRes: any = await apiClient.get(`/api/v1/chat/rooms/${roomData.id}/messages/`);
+        const msgData = msgRes?.data || msgRes;
+        const list = Array.isArray(msgData) ? msgData : msgData?.results || [];
+        const normalizedList = list.map(normalizeChatMessage);
+        const sortedList = [...normalizedList].sort((a, b) => {
+          const aTime = new Date(a.createdAt).getTime();
+          const bTime = new Date(b.createdAt).getTime();
+          if (aTime !== bTime) return aTime - bTime;
+          return String(a.id).localeCompare(String(b.id));
+        });
+        setMessages(sortedList);
 
-  const scrollToBottomManual = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    setShowScrollToBottom(false);
-  };
-
-  // Load older messages while preserving scroll height position
-  const handleLoadOlderMessages = () => {
-    if (isLoadingOlder || !messagesContainerRef.current) return;
-    setIsLoadingOlder(true);
-    const container = messagesContainerRef.current;
-    const oldScrollHeight = container.scrollHeight;
-
-    setTimeout(() => {
-      setDisplayedCount((prev) => prev + 15);
-      requestAnimationFrame(() => {
-        if (container) {
-          const newScrollHeight = container.scrollHeight;
-          container.scrollTop = newScrollHeight - oldScrollHeight;
+        // Mark room read once via WebSocket if connected, otherwise queue
+        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+          socketRef.current.send(JSON.stringify({
+            type: 'messages.read',
+            last_read_message_id: sortedList.length > 0 ? sortedList[sortedList.length - 1].id : null,
+          }));
         }
-        setIsLoadingOlder(false);
-      });
-    }, 300);
-  };
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.detail || "Couldn't load personal chat.";
+      setError(msg);
+    } finally {
+      setIsInitialLoading(false);
+    }
+  }, [courseUuid, currentUser?.id]);
 
-  // Auto-growing textarea handler (1 to 4 rows)
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMessageInput(e.target.value);
-    if (composerError) setComposerError(null);
+  useEffect(() => {
+    loadChatRoom();
+  }, [loadChatRoom]);
 
-    const target = e.target;
-    target.style.height = 'auto';
-    const newHeight = Math.min(target.scrollHeight, 120);
-    target.style.height = `${Math.max(42, newHeight)}px`;
-  };
-
-  // File Upload Handler with Validation
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
-      setComposerError('File size exceeds 10MB limit.');
-      setTimeout(() => setComposerError(null), 4000);
+  // 2. Private WebSocket connection
+  const connectSocket = useCallback(() => {
+    if (!room?.id) return;
+    if (socketRef.current && (socketRef.current.readyState === WebSocket.CONNECTING || socketRef.current.readyState === WebSocket.OPEN)) {
       return;
     }
 
-    const type: ChatAttachment['type'] = file.type.startsWith('image/')
-      ? 'image'
-      : file.type.includes('pdf')
-      ? 'pdf'
-      : 'document';
+    setSocketStatus(reconnectAttemptsRef.current > 0 ? 'reconnecting' : 'connecting');
 
-    setSelectedFile({
-      id: `att-${Date.now()}`,
-      name: file.name,
-      type,
-      size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-      url: URL.createObjectURL(file),
-    });
-    setComposerError(null);
-  };
+    try {
+      const wsUrl = getWebSocketUrl(room.id);
+      const ws = new WebSocket(wsUrl);
+      socketRef.current = ws;
 
-  // Fallback Mock Attachment if input canceled
-  const handleAttachMock = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
+      ws.onopen = () => {
+        setSocketStatus('connected');
+        if (reconnectAttemptsRef.current > 0) {
+          // REST reconciliation on reconnect
+          apiClient.get(`/api/v1/chat/rooms/${room.id}/messages/`).then((res: any) => {
+            const data = res?.data || res;
+            const list = Array.isArray(data) ? data : data?.results || [];
+            setMessages(list.map(normalizeChatMessage));
+          }).catch(() => {});
+        }
+        reconnectAttemptsRef.current = 0;
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const envelope = JSON.parse(event.data);
+          if (!envelope || !envelope.type) return;
+
+          if (envelope.event_id) {
+            if (processedEventIdsRef.current.has(envelope.event_id)) return;
+            processedEventIdsRef.current.add(envelope.event_id);
+            if (processedEventIdsRef.current.size > 500) {
+              const firstItem = processedEventIdsRef.current.values().next().value;
+              if (firstItem) processedEventIdsRef.current.delete(firstItem);
+            }
+          }
+
+          if (envelope.type === 'error') {
+            if (envelope.code === 'CHAT_FILE_UPLOAD_DISABLED') {
+              setUploadError('File uploads are disabled by your Academy.');
+              setFileUploadEnabled(false);
+            } else {
+              setComposerError(envelope.detail || 'WebSocket error');
+            }
+          }
+
+          if (['personal_message.created', 'chat_message.created', 'message.created'].includes(envelope.type) && envelope.data) {
+            const newMsg = normalizeChatMessage(envelope.data);
+            setMessages((prev) => {
+              if (prev.some((m) => String(m.id) === String(newMsg.id))) return prev;
+              const updated = [...prev, newMsg].sort((a, b) => {
+                const aTime = new Date(a.createdAt).getTime();
+                const bTime = new Date(b.createdAt).getTime();
+                if (aTime !== bTime) return aTime - bTime;
+                return String(a.id).localeCompare(String(b.id));
+              });
+              return updated;
+            });
+
+            const container = messagesContainerRef.current;
+            if (container) {
+              const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+              if (isNearBottom) {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+              }
+            } else {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }
+          }
+        } catch {
+          // ignore invalid frames
+        }
+      };
+
+      ws.onclose = (evt) => {
+        socketRef.current = null;
+        setSocketStatus('disconnected');
+        if (evt.code === 4001) return;
+
+        reconnectAttemptsRef.current += 1;
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000);
+        reconnectTimerRef.current = setTimeout(connectSocket, delay);
+      };
+    } catch {
+      setSocketStatus('disconnected');
+    }
+  }, [room?.id]);
+
+  useEffect(() => {
+    if (room?.id) {
+      connectSocket();
+    }
+    return () => {
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (socketRef.current) {
+        socketRef.current.close(1000, 'Unmounted');
+        socketRef.current = null;
+      }
+      setSocketStatus('disconnected');
+    };
+  }, [room?.id, connectSocket]);
+
+  // 3. Auto-scroll on initial load & layout shifts
+  useLayoutEffect(() => {
+    if (messages.length > 0) {
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ block: 'end', behavior: 'auto' });
+      });
+    }
+  }, [messages.length]);
+
+  // File selection & upload handler via backend storage service
+  const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !fileUploadEnabled) return;
+
+    setSelectedFile(file);
+    setUploadError(null);
+    setIsUploadingFile(true);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    if (courseUuid) formData.append('course_uuid', courseUuid);
+
+    try {
+      const res: any = await apiClient.postForm('/api/v1/storage/upload/', formData);
+      const mediaItem = res?.data?.id
+        ? res.data
+        : res?.data?.data?.id
+        ? res.data.data
+        : res?.id
+        ? res
+        : null;
+
+      if (mediaItem?.id) {
+        setUploadedMediaId(String(mediaItem.id));
+      } else {
+        setUploadError('Upload succeeded but no media reference was returned.');
+      }
+    } catch (err: any) {
+      setUploadError(err?.message || err?.response?.data?.detail || 'Failed to upload file.');
+      setUploadedMediaId(null);
+    } finally {
+      setIsUploadingFile(false);
     }
   };
 
-  const handleSendMessage = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!messageInput.trim() && !selectedFile) return;
-    if (!activeConversation) return;
+  const handleRemoveSelectedFile = () => {
+    setSelectedFile(null);
+    setUploadedMediaId(null);
+    setUploadError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
-    sendMessage({
-      conversationUuid: activeConversation.uuid,
-      senderUuid: studentUuid,
-      senderName: student?.name || 'Alex Student',
-      senderAvatar: student?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120',
-      senderRole: 'student',
-      content: messageInput.trim(),
-      attachments: selectedFile ? [selectedFile] : [],
-    });
+  // 4. Send Message Handler
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const hasText = Boolean(messageInput.trim());
+    const hasFile = Boolean(uploadedMediaId);
+
+    if ((!hasText && !hasFile) || !room?.id || isSending || isUploadingFile) return;
+
+    setIsSending(true);
+    setComposerError(null);
+    setUploadError(null);
+
+    const contentToSend = messageInput.trim();
+    const mediaIdsToSend = uploadedMediaId ? [uploadedMediaId] : [];
 
     setMessageInput('');
     setSelectedFile(null);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = '42px';
-    }
+    setUploadedMediaId(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (textareaRef.current) textareaRef.current.style.height = '42px';
 
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }, 50);
+    try {
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        const clientRequestId = String(Date.now()) + '-' + Math.random().toString(36).substr(2, 9);
+        socketRef.current.send(JSON.stringify({
+          type: 'message.send',
+          client_request_id: clientRequestId,
+          content: contentToSend,
+          media_file_ids: mediaIdsToSend,
+        }));
+      } else {
+        const res: any = await apiClient.post(`/api/v1/chat/rooms/${room.id}/send-message/`, {
+          content: contentToSend,
+          media_file_ids: mediaIdsToSend,
+        });
+        const sentMsg = res?.data || res;
+        setMessages((prev) => {
+          if (prev.some((m) => String(m.id) === String(sentMsg.id))) return prev;
+          const updated = [...prev, sentMsg].sort((a, b) => {
+            const aTime = new Date(a.created_at).getTime();
+            const bTime = new Date(b.created_at).getTime();
+            if (aTime !== bTime) return aTime - bTime;
+            return String(a.id).localeCompare(String(b.id));
+          });
+          return updated;
+        });
+      }
+
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } catch (err: any) {
+      setMessageInput(contentToSend);
+      if (err?.response?.data?.code === 'CHAT_FILE_UPLOAD_DISABLED' || err?.response?.status === 403) {
+        setUploadError('File uploads are disabled by your Academy.');
+        setFileUploadEnabled(false);
+      } else {
+        const msg = err?.response?.data?.detail || 'Failed to send message.';
+        setComposerError(msg);
+      }
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -212,325 +376,237 @@ export const PersonalChatPage: React.FC = () => {
     }
   };
 
-  // Group messages by date
-  const formatDateGroup = (dateString: string) => {
-    const d = new Date(dateString);
-    const now = new Date();
-    if (d.toDateString() === now.toDateString()) return 'Today';
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
-    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  };
+  // Feature gate check
+  if (!isFeatureLoading && !isFeatureEnabled(COURSE_FEATURE_KEYS.ONE_TO_ONE_SESSION)) {
+    return (
+      <div className="p-8 text-center max-w-md mx-auto my-12 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#263244] rounded-2xl space-y-3">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-[#F8FAFC]">1-to-1 Session Disabled</h2>
+        <p className="text-xs text-slate-500 dark:text-[#94A3B8]">
+          One-to-one session is not enabled for this course.
+        </p>
+        <Button size="sm" onClick={() => navigate(-1)}>
+          Go Back
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-4rem)] min-h-0 max-w-5xl mx-auto w-full font-sans text-xs text-left bg-white sm:rounded-2xl sm:border border-slate-200 shadow-2xs overflow-hidden">
-      {/* 1. COMPACT ACADEMY CHAT HEADER */}
+    <div className="flex flex-col h-[calc(100dvh-3.5rem-env(safe-area-inset-bottom))] md:h-[calc(100vh-4rem)] min-h-0 max-w-5xl mx-auto w-full font-sans text-xs text-left bg-white dark:bg-[#111827] sm:rounded-2xl sm:border border-slate-200 dark:border-[#263244] shadow-2xs overflow-hidden">
+      {/* 1. CHAT HEADER (NO VIDEO SESSION BUTTON) */}
       <header className="px-3 sm:px-4 py-2.5 bg-slate-900 text-white flex items-center justify-between gap-2.5 border-b border-slate-800 shrink-0 z-10 min-h-[56px]">
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <button
             type="button"
             aria-label="Back"
-            onClick={() => navigate(-1)}
-            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center"
+            onClick={() => navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/overview`)}
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
 
-          <img
-            src={academy?.logoUrl || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=100'}
-            alt={academy?.name || 'Academy Logo'}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover border border-slate-700/80 shrink-0 shadow-xs"
-          />
-
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="font-semibold text-sm sm:text-base text-white truncate leading-tight">
-              {academy?.name || 'CodeVerse Software Academy'}
+              Personal Chat
             </h1>
             <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-normal">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <span className="truncate">Academy Support • Online</span>
+              <span
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  socketStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                }`}
+              />
+              <span className="truncate">
+                {socketStatus === 'connected' ? 'Connected • Instructor & Staff' : 'Connecting...'}
+              </span>
             </div>
           </div>
         </div>
       </header>
 
-      {/* 2. MESSAGES HISTORY (SCROLLABLE ONLY AREA) */}
+      {/* 2. MESSAGES HISTORY (NORMAL CHRONOLOGICAL CONTINUOUS STACK) */}
       <div
         ref={messagesContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 bg-slate-50/70 relative hide-scrollbar"
+        className="flex-1 min-h-0 overflow-y-auto bg-slate-50/70 dark:bg-[#0B0F17] relative hide-scrollbar p-3 sm:p-4 space-y-2.5 flex flex-col"
       >
-        {/* LOAD OLDER MESSAGES BUTTON */}
-        {hasOlderMessages && (
-          <div className="text-center pt-1 pb-2">
-            <button
-              type="button"
-              onClick={handleLoadOlderMessages}
-              disabled={isLoadingOlder}
-              className="px-3 py-1 rounded-full text-[11px] font-medium bg-white text-slate-600 border border-slate-200 shadow-2xs hover:bg-slate-50 cursor-pointer disabled:opacity-50"
-            >
-              {isLoadingOlder ? 'Loading older messages...' : 'Load older messages'}
-            </button>
-          </div>
-        )}
-
-        {/* INITIAL SKELETON LOADING STATE */}
         {isInitialLoading ? (
           <div className="space-y-3 p-2">
-            <div className="flex justify-center my-2">
-              <span className="text-[11px] font-medium text-slate-400 bg-white/80 border border-slate-200/60 px-3 py-1 rounded-full animate-pulse">
-                Loading conversation...
-              </span>
+            <Skeleton className="h-10 w-48 rounded-2xl" />
+            <Skeleton className="h-14 w-64 rounded-2xl ml-auto bg-blue-200/50" />
+            <Skeleton className="h-12 w-56 rounded-2xl" />
+          </div>
+        ) : error ? (
+          <div className="p-8 text-center space-y-3 my-auto">
+            <p className="text-rose-600 dark:text-rose-400 font-semibold">{error}</p>
+            <Button size="sm" onClick={loadChatRoom} leftIcon={<RefreshCw className="w-4 h-4" />}>
+              Try Again
+            </Button>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="my-auto flex flex-col items-center justify-center p-6 text-center space-y-2 max-w-sm mx-auto text-slate-500 dark:text-[#94A3B8]">
+            <div className="w-12 h-12 rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#263244] flex items-center justify-center text-slate-400 shadow-2xs">
+              <Building2 className="w-6 h-6" />
             </div>
-            <div className="flex flex-col items-start space-y-1">
-              <div className="w-48 h-12 bg-white rounded-2xl rounded-bl-xs border border-slate-200/80 animate-pulse" />
-            </div>
-            <div className="flex flex-col items-end space-y-1">
-              <div className="w-56 h-14 bg-blue-200/60 rounded-2xl rounded-br-xs animate-pulse" />
-            </div>
-            <div className="flex flex-col items-start space-y-1">
-              <div className="w-64 h-16 bg-white rounded-2xl rounded-bl-xs border border-slate-200/80 animate-pulse" />
-            </div>
+            <span className="font-semibold text-xs text-slate-900 dark:text-[#F8FAFC] block">
+              No messages yet.
+            </span>
+            <p className="text-[11px] leading-relaxed font-normal">
+              Start a private conversation with your instructor regarding this course.
+            </p>
           </div>
         ) : (
           <>
-            {/* EMPTY CONVERSATION STATE */}
-            {visibleMessages.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center p-6 text-center space-y-2 max-w-sm mx-auto text-slate-500">
-                <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 shadow-2xs">
-                  <Building2 className="w-6 h-6" />
-                </div>
-                <span className="font-semibold text-xs text-slate-900 block">Start a conversation with your academy</span>
-                <p className="text-[11px] text-slate-500 leading-relaxed font-normal">
-                  Ask questions about your course curriculum, lessons, assignments, or account support.
-                </p>
-              </div>
-            )}
-          </>
-        )}
+            {messages.map((rawMsg) => {
+              const msg: NormalizedChatMessage = normalizeChatMessage(rawMsg);
+              const currentUserId = String(
+                currentUser?.id ??
+                currentUser?.uuid ??
+                (currentUser as any)?.user_id ??
+                ''
+              );
+              const isMe = Boolean(currentUserId && msg.senderId && msg.senderId === currentUserId);
 
-        {/* MESSAGES LISTING */}
-        {visibleMessages.map((msg, index) => {
-          const isMe = msg.senderUuid === studentUuid || msg.senderRole === 'student';
-          const prevMsg = visibleMessages[index - 1];
-          const showDateSeparator =
-            !prevMsg || formatDateGroup(prevMsg.createdAt) !== formatDateGroup(msg.createdAt);
-
-          return (
-            <React.Fragment key={msg.uuid}>
-              {/* DATE SEPARATOR */}
-              {showDateSeparator && (
-                <div className="flex justify-center my-2">
-                  <span className="text-[11px] font-medium text-slate-500 bg-white/90 border border-slate-200/60 px-2.5 py-0.5 rounded-full shadow-2xs">
-                    {formatDateGroup(msg.createdAt)}
-                  </span>
-                </div>
-              )}
-
-              {/* MESSAGE BUBBLE */}
-              <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-1`}>
-                <div
-                  className={`max-w-[85%] sm:max-w-[65%] min-w-0 p-3 rounded-2xl shadow-2xs space-y-1.5 ${
-                    isMe
-                      ? 'text-white rounded-br-xs'
-                      : 'bg-white text-slate-900 border border-slate-200/90 rounded-bl-xs'
-                  }`}
-                  style={{ backgroundColor: isMe ? theme.primaryColor : undefined }}
-                >
-                  {/* SENDER NAME (ACADEMY SIDE ONLY) */}
-                  {!isMe && (
-                    <span className="font-semibold text-[11px] text-slate-600 block truncate">
-                      {msg.senderName || 'Academy Support'}
-                    </span>
-                  )}
-
-                  {/* MESSAGE CONTENT */}
-                  {msg.content && (
-                    <p className="text-[14px] font-normal leading-relaxed break-words break-all whitespace-pre-line">
-                      {msg.content}
-                    </p>
-                  )}
-
-                  {/* ATTACHMENTS */}
-                  {msg.attachments && msg.attachments.length > 0 && (
-                    <div className="space-y-1.5 pt-1">
-                      {msg.attachments.map((att) => (
-                        <div key={att.id} className="rounded-xl overflow-hidden min-w-0">
-                          {att.type === 'image' ? (
-                            <div className="space-y-1">
-                              <img
-                                src={att.url}
-                                alt={att.name}
-                                className="max-h-48 rounded-lg object-cover w-full border border-black/10"
-                              />
-                              <span className="text-[10px] opacity-80 block truncate">{att.name}</span>
-                            </div>
-                          ) : (
-                            <div
-                              className={`p-2.5 rounded-xl flex items-center justify-between gap-2 border text-xs ${
-                                isMe ? 'bg-white/10 border-white/20 text-white' : 'bg-slate-50 border-slate-200 text-slate-800'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <FileText className="w-4 h-4 shrink-0" />
-                                <div className="min-w-0">
-                                  <span className="font-semibold text-[11px] block truncate">{att.name}</span>
-                                  {att.size && <span className="text-[10px] opacity-75 block">{att.size}</span>}
-                                </div>
-                              </div>
-                              <a
-                                href={att.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className={`px-2 py-1 rounded-lg text-[10px] font-semibold shrink-0 ${
-                                  isMe ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                                }`}
-                              >
-                                View
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* TIMESTAMP & READ TICK */}
+              return (
+                <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-1`}>
                   <div
-                    className={`flex items-center justify-end gap-1 text-[10px] font-normal opacity-75 ${
-                      isMe ? 'text-white' : 'text-slate-400'
+                    className={`max-w-[82%] sm:max-w-[72%] min-w-0 p-3 rounded-2xl shadow-2xs space-y-1 ${
+                      isMe
+                        ? 'bg-[#2563EB] text-white rounded-br-xs'
+                        : 'bg-white dark:bg-[#111827] text-slate-900 dark:text-[#F8FAFC] border border-slate-200 dark:border-[#263244] rounded-bl-xs'
                     }`}
                   >
-                    <span>
-                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                    </span>
-                    {isMe && <CheckCheck className="w-3 h-3 text-white/90 shrink-0" />}
+                    {!isMe && (
+                      <span className="font-semibold text-[11px] text-slate-600 dark:text-[#94A3B8] block truncate">
+                        {msg.senderName || 'Instructor'}
+                      </span>
+                    )}
+
+                    {/* Attachment rendering */}
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div className="mb-1.5 space-y-1">
+                        {msg.attachments.map((att: any) => (
+                          <a
+                            key={att.id}
+                            href={att.media_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex items-center gap-2 p-2 rounded-xl text-xs font-medium transition-colors ${
+                              isMe
+                                ? 'bg-blue-700/60 hover:bg-blue-700 text-white'
+                                : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200'
+                            }`}
+                          >
+                            <FileText className="w-4 h-4 shrink-0" />
+                            <span className="truncate flex-1">{att.original_name || 'Attachment'}</span>
+                            <Download className="w-3.5 h-3.5 shrink-0 opacity-80" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+
+                    {msg.content && (
+                      <p className="text-[13px] sm:text-[14px] font-normal leading-relaxed break-words whitespace-pre-line">
+                        {msg.content}
+                      </p>
+                    )}
+
+                    <div
+                      className={`flex items-center justify-end gap-1 text-[10px] font-normal opacity-75 ${
+                        isMe ? 'text-white' : 'text-slate-400'
+                      }`}
+                    >
+                      <span>{msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}</span>
+                      {isMe && <CheckCheck className="w-3 h-3 text-white/90 shrink-0" />}
+                    </div>
                   </div>
                 </div>
-
-                {/* DELETE MESSAGE OPTION FOR STUDENT */}
-                {isMe && (
-                  <button
-                    type="button"
-                    onClick={() => deleteStudentMessage(activeConversation.uuid, msg.uuid)}
-                    className="text-[10px] text-slate-400 hover:text-red-500 font-medium px-1 cursor-pointer transition-colors"
-                  >
-                    Delete
-                  </button>
-                )}
-              </div>
-            </React.Fragment>
-          );
-        })}
-
-        {/* BOTTOM SCROLL ANCHOR */}
-        <div ref={messagesEndRef} className="h-1 pb-3" />
+              );
+            })}
+            <div ref={messagesEndRef} className="h-1" />
+          </>
+        )}
       </div>
 
-      {/* FLOATING SCROLL TO LATEST BUTTON */}
-      {showScrollToBottom && (
-        <button
-          type="button"
-          onClick={scrollToBottomManual}
-          className="absolute bottom-20 right-4 z-20 px-3 py-1.5 rounded-full bg-slate-900 text-white text-[11px] font-medium shadow-md hover:bg-slate-800 transition-all flex items-center gap-1 cursor-pointer"
-        >
-          <span>↓ Latest message</span>
-        </button>
-      )}
-
-      {/* 3. CONTEXT REFERENCE CHIP */}
-      {chatContext && (
-        <div className="px-3 sm:px-4 py-1.5 bg-blue-50 border-t border-blue-100 flex items-center justify-between text-[11px] text-blue-950 font-semibold shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <BookOpen className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-            <span className="truncate">Regarding: {chatContext.lessonTitle || chatContext.courseTitle}</span>
-          </div>
-          <button
-            type="button"
-            aria-label="Remove context"
-            onClick={() => setChatContext(null)}
-            className="text-blue-500 hover:text-blue-700 cursor-pointer p-1"
-          >
-            <X className="w-3.5 h-3.5 shrink-0" />
-          </button>
-        </div>
-      )}
-
-      {/* 4. ATTACHMENT UPLOAD PREVIEW CHIP */}
-      {selectedFile && (
-        <div className="px-3 sm:px-4 py-2 bg-slate-100 border-t border-slate-200 flex items-center justify-between text-xs text-slate-700 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            {selectedFile.type === 'image' ? (
-              <ImageIcon className="w-4 h-4 text-blue-600 shrink-0" />
-            ) : (
-              <FileText className="w-4 h-4 text-blue-600 shrink-0" />
-            )}
-            <span className="truncate font-semibold text-[11px]">{selectedFile.name}</span>
-            {selectedFile.size && <span className="text-[10px] text-slate-400 shrink-0">• {selectedFile.size}</span>}
-          </div>
-          <button
-            type="button"
-            aria-label="Remove attachment"
-            onClick={() => setSelectedFile(null)}
-            className="text-slate-400 hover:text-slate-600 cursor-pointer p-1 shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* COMPOSER ERROR ALERT */}
+      {/* 3. COMPOSER ERROR */}
       {composerError && (
         <div className="px-4 py-1.5 bg-rose-50 text-rose-700 text-[11px] font-medium border-t border-rose-200 shrink-0">
           {composerError}
         </div>
       )}
 
-      {/* 5. WHATSAPP-STYLE COMPOSER */}
+      {/* 4. COMPOSER */}
       <form
         onSubmit={handleSendMessage}
-        style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
-        className="p-2 sm:p-3 bg-white border-t border-slate-200/90 flex items-end gap-2 shrink-0 z-10"
+        className="p-2.5 sm:p-3 bg-white dark:bg-[#111827] border-t border-slate-200 dark:border-[#263244] flex flex-col gap-2 shrink-0 z-10 sticky bottom-0"
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          onChange={handleFileSelect}
-          accept="image/*,.pdf,.doc,.docx,.zip"
-        />
+        {/* Pending Attachment Preview / Upload Error */}
+        {(selectedFile || uploadError) && (
+          <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+            {uploadError ? (
+              <span className="text-rose-600 dark:text-rose-400 font-medium truncate">{uploadError}</span>
+            ) : (
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                <span className="truncate font-medium text-slate-800 dark:text-slate-200">{selectedFile?.name}</span>
+                {isUploadingFile ? (
+                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold animate-pulse shrink-0">Uploading...</span>
+                ) : (
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold shrink-0">Ready</span>
+                )}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleRemoveSelectedFile}
+              className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer shrink-0"
+              title="Remove Attachment"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
-        <button
-          type="button"
-          aria-label="Attach file"
-          onClick={handleAttachMock}
-          className="h-11 w-11 shrink-0 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer transition-colors"
-        >
-          <Paperclip className="h-5 w-5 shrink-0 text-slate-600" />
-        </button>
+        <div className="flex items-center gap-2 w-full">
+          {fileUploadEnabled && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={handleFileSelection}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingFile || isSending}
+                className="h-10 w-10 p-0 flex items-center justify-center rounded-2xl border border-slate-200 dark:border-[#263244] bg-slate-50 dark:bg-slate-900 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                title="Attach File"
+              >
+                <Paperclip className="w-4 h-4" />
+              </button>
+            </>
+          )}
 
-        <div className="flex-1 min-w-0">
-          <textarea
-            ref={textareaRef}
-            rows={1}
-            value={messageInput}
-            onChange={handleTextareaChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
-            className="w-full min-h-[44px] max-h-[120px] px-3.5 py-2.5 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none font-sans"
-          />
+          <div className="flex-1 min-w-0">
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              value={messageInput}
+              onChange={(e) => setMessageInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message..."
+              className="w-full min-h-[42px] max-h-[120px] px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-[#263244] bg-white dark:bg-[#0F172A] text-xs sm:text-sm text-slate-900 dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none font-sans block"
+            />
+          </div>
+
+          <button
+            type="submit"
+            aria-label="Send message"
+            disabled={isSending || isUploadingFile || (!messageInput.trim() && !uploadedMediaId)}
+            className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-full inline-flex items-center justify-center bg-[#2563EB] text-[#FFFFFF] shadow-xs hover:opacity-90 transition-all disabled:opacity-50 cursor-pointer"
+          >
+            <Send className="h-4 h-4 sm:h-5 sm:w-5 shrink-0 text-[#FFFFFF]" />
+          </button>
         </div>
-
-        <button
-          type="submit"
-          aria-label="Send message"
-          disabled={!messageInput.trim() && !selectedFile}
-          style={{ backgroundColor: theme.primaryColor }}
-          className="h-11 w-11 shrink-0 rounded-full inline-flex items-center justify-center text-white shadow-xs hover:opacity-90 transition-all disabled:opacity-50 cursor-pointer"
-        >
-          <Send className="h-5 w-5 shrink-0 text-white" />
-        </button>
       </form>
     </div>
   );

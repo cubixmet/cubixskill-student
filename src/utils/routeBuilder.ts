@@ -37,16 +37,19 @@ export function buildStudentCourseCurriculumPath(academyUuid?: string | null, co
   return `/student/academies/${academyUuid}/courses/${courseUuid}/curriculum`;
 }
 
-export function buildStudentAcademyCoursesPath(academyUuid?: string | null): string {
+export function buildStudentAcademyHomePath(academyUuid?: string | null): string {
   if (!isValidUuid(academyUuid)) {
     return '/student/academies';
   }
   return `/student/academies/${academyUuid}`;
 }
 
+export const buildStudentAcademyCoursesPath = buildStudentAcademyHomePath;
+
 export const studentCourseRoutes = {
+  home: buildStudentAcademyHomePath,
   overview: buildStudentCourseOverviewPath,
   learn: buildStudentCourseLearnPath,
   curriculum: buildStudentCourseCurriculumPath,
-  academyCourses: buildStudentAcademyCoursesPath,
+  academyCourses: buildStudentAcademyHomePath,
 };

@@ -256,7 +256,7 @@ export const studentPortalService = {
 
   async getCourseModules(courseUuid: string): Promise<any[]> {
     try {
-      const res = await apiClient.get<any>(API_ENDPOINTS.courses.modules, { course: courseUuid });
+      const res = await apiClient.get<any>(API_ENDPOINTS.courses.modules(courseUuid));
       const data = res?.data || res;
       if (Array.isArray(data)) return data;
       if (data && Array.isArray(data.results)) return data.results;

@@ -2,6 +2,7 @@ import { env } from '../config/env';
 import { API_ENDPOINTS } from '../config/apiEndpoints';
 
 const API_BASE_URL = env.apiBaseUrl.replace(/\/+$/, '');
+const BACKEND_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, '').replace(/\/+$/, '');
 
 export interface ApiErrorResponse {
   message?: string;
@@ -27,12 +28,21 @@ export class ApiError extends Error {
 
 export function resolveMediaUrl(url?: string | null): string {
   if (!url || typeof url !== 'string') return '';
-  const trimmed = url.trim();
+  let trimmed = url.trim();
   if (!trimmed || trimmed.toLowerCase() === 'none' || trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined') {
     return '';
   }
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
-  return `${API_BASE_URL}${trimmed.startsWith('/') ? '' : '/'}${trimmed}`;
+
+  if (trimmed.includes('testserver')) {
+    trimmed = trimmed.replace(/^https?:\/\/testserver/i, '');
+  }
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('blob:') || trimmed.startsWith('data:')) {
+    return trimmed;
+  }
+
+  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${BACKEND_ORIGIN}${cleanPath}`;
 }
 
 export function clearTokens() {
@@ -59,8 +69,11 @@ let inFlightRefreshPromise: Promise<boolean> | null = null;
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
 
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    'X-Portal': 'student',
+    ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
     ...(options.headers as Record<string, string> || {}),
   };
 
@@ -86,7 +99,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
             const refreshRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.auth.refreshToken}`, {
               method: 'POST',
               credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', 'X-Portal': 'student' },
             });
             return refreshRes.ok;
           } catch {
@@ -174,6 +187,13 @@ export const apiClient = {
     return request<T>(endpoint, {
       method: 'POST',
       body: body ? JSON.stringify(body) : undefined,
+    });
+  },
+
+  postForm: <T>(endpoint: string, formData: FormData) => {
+    return request<T>(endpoint, {
+      method: 'POST',
+      body: formData,
     });
   },
 

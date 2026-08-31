@@ -57,11 +57,7 @@ export function resolveStudentEntry(params: StudentEntryParams): string {
 
   // 4. Current academy enrolled-course list
   if (isValidUuid(academyUuid)) {
-    const enrolledCourses = getStudentCoursesByAcademy(academyUuid!);
-    if (enrolledCourses.length === 1 && isValidUuid(enrolledCourses[0].uuid)) {
-      return buildStudentCourseOverviewPath(academyUuid!, enrolledCourses[0].uuid);
-    }
-    return buildStudentAcademyCoursesPath(academyUuid!);
+    return `/student/academies/${academyUuid}`;
   }
 
   // 5. Global fallback

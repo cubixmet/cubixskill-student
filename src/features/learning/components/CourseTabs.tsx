@@ -1,8 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isValidUuid, buildStudentCourseOverviewPath, buildStudentCourseCurriculumPath } from '../../../utils/routeBuilder';
+import { useCourseFeatures } from '../../../hooks/useCourseFeatures';
+import { COURSE_FEATURE_KEYS } from '../../../constants/courseFeatures.constants';
 
-export type CourseTabId = 'overview' | 'curriculum' | 'live-classes' | 'discussions' | 'certificates';
+export type CourseTabId = 'overview' | 'curriculum' | 'fees' | 'announcements' | 'live-classes' | 'discussions' | 'certificates' | 'personal-chat' | 'one-to-one';
 
 interface CourseTabsProps {
   academyUuid: string;
@@ -12,22 +14,31 @@ interface CourseTabsProps {
 
 export const CourseTabs: React.FC<CourseTabsProps> = ({ academyUuid, courseUuid, activeTab }) => {
   const navigate = useNavigate();
+  const { isFeatureEnabled } = useCourseFeatures(courseUuid);
 
   if (!isValidUuid(academyUuid) || !isValidUuid(courseUuid)) {
     return null;
   }
 
-  const tabs: { id: CourseTabId; label: string; path: string }[] = [
+  const allTabs: { id: CourseTabId; label: string; path: string; featureKey?: string }[] = [
     { id: 'overview', label: 'Overview', path: buildStudentCourseOverviewPath(academyUuid, courseUuid) },
-    { id: 'curriculum', label: 'Curriculum', path: buildStudentCourseCurriculumPath(academyUuid, courseUuid) },
-    { id: 'live-classes', label: 'Live Classes', path: `/student/academies/${academyUuid}/courses/${courseUuid}/live-classes` },
-    { id: 'discussions', label: 'Discussions', path: `/student/academies/${academyUuid}/courses/${courseUuid}/discussions` },
-    { id: 'certificates', label: 'Certificates', path: `/student/academies/${academyUuid}/courses/${courseUuid}/certificates` },
+    { id: 'curriculum', label: 'Curriculum', path: buildStudentCourseCurriculumPath(academyUuid, courseUuid), featureKey: COURSE_FEATURE_KEYS.LESSONS },
+    { id: 'fees', label: 'Fees', path: `/student/academies/${academyUuid}/courses/${courseUuid}/fees`, featureKey: COURSE_FEATURE_KEYS.FEE_COLLECTION },
+    { id: 'announcements', label: 'Announcements', path: `/student/academies/${academyUuid}/courses/${courseUuid}/announcements`, featureKey: COURSE_FEATURE_KEYS.COURSE_ANNOUNCEMENT },
+    { id: 'live-classes', label: 'Live Classes', path: `/student/academies/${academyUuid}/courses/${courseUuid}/live-classes`, featureKey: COURSE_FEATURE_KEYS.LIVE_CLASS },
+    { id: 'discussions', label: 'Discussions', path: `/student/academies/${academyUuid}/courses/${courseUuid}/discussions`, featureKey: COURSE_FEATURE_KEYS.COURSE_DISCUSSION },
+    { id: 'certificates', label: 'Certificates', path: `/student/academies/${academyUuid}/courses/${courseUuid}/certificates`, featureKey: COURSE_FEATURE_KEYS.COMPLETION_CERTIFICATE },
+    { id: 'personal-chat', label: 'Personal Chat', path: `/student/academies/${academyUuid}/courses/${courseUuid}/personal-chat`, featureKey: COURSE_FEATURE_KEYS.ONE_TO_ONE_SESSION },
   ];
+
+  const visibleTabs = allTabs.filter((tab) => {
+    if (!tab.featureKey) return true;
+    return isFeatureEnabled(tab.featureKey);
+  });
 
   return (
     <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#263244] rounded-[10px] p-[5px] flex gap-1.5 overflow-x-auto whitespace-nowrap hide-scrollbar w-full">
-      {tabs.map((tab) => {
+      {visibleTabs.map((tab) => {
         const isActive = tab.id === activeTab;
         return (
           <button

@@ -33,6 +33,8 @@ import { CertificatesPage } from './features/certificates/pages/CertificatesPage
 import { NotificationsPage } from './features/notifications/pages/NotificationsPage';
 import { DiscussionsPage } from './features/discussions/pages/DiscussionsPage';
 import { PersonalChatPage } from './features/personal-chat/pages/PersonalChatPage';
+import { AnnouncementsPage } from './features/announcements/pages/AnnouncementsPage';
+import { FeesPage } from './features/profile/pages/FeesPage';
 import { ProfileSettingsPage } from './features/profile/pages/ProfileSettingsPage';
 
 import { NotFoundPage } from './features/error-pages/NotFoundPage';
@@ -109,7 +111,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'dashboard',
-        element: <StudentDashboardPage />,
+        element: <Navigate to=".." replace />,
       },
       {
         path: 'courses',
@@ -133,7 +135,8 @@ export const router = createBrowserRouter([
               { path: 'quizzes', element: <Navigate to="../overview" replace /> },
               { path: 'live-classes', element: <LiveClassesPage /> },
               { path: 'certificates', element: <CertificatesPage /> },
-              { path: 'announcements', element: <Navigate to="../notifications" replace /> },
+              { path: 'fees', element: <FeesPage /> },
+              { path: 'announcements', element: <AnnouncementsPage /> },
               { path: 'discussions', element: <DiscussionsPage /> },
               { path: 'personal-chat', element: <PersonalChatPage /> },
               { path: 'personal-chat/:conversationUuid', element: <PersonalChatPage /> },
@@ -156,6 +159,12 @@ export const router = createBrowserRouter([
       {
         index: true,
         element: <AcademyHomePage />,
+      },
+      {
+        path: 'dashboard',
+        element: (
+          <Navigate to={`/student/academies/${window.location.pathname.split('/')[1]}`} replace />
+        ),
       },
       {
         path: 'courses',
