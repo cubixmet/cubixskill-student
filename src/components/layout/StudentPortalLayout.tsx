@@ -25,15 +25,16 @@ import { useAcademyStore, FIXED_PORTAL_SURFACES } from '../../stores/academy.sto
 import { useCourseStore } from '../../stores/course.store';
 import { useAuthStore } from '../../stores/auth.store';
 import { saveLastActiveCourse } from '../../utils/last-active-course.utility';
+import { StudentResumeTracker } from '../StudentResumeTracker';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { Avatar } from '../ui/Avatar';
 import { useCourseFeatures } from '../../hooks/useCourseFeatures';
 import { COURSE_FEATURE_KEYS } from '../../constants/courseFeatures.constants';
 
 export const StudentPortalLayout: React.FC = () => {
-  const { academyUuid = '550e8400-e29b-41d4-a716-446655440000', courseUuid = '9c78bda1-98c2-4b11-8b81-92d3db12b501' } = useParams<{
-    academyUuid: string;
-    courseUuid: string;
+  const { academyUuid, courseUuid } = useParams<{
+    academyUuid?: string;
+    courseUuid?: string;
   }>();
 
   const navigate = useNavigate();
@@ -139,6 +140,7 @@ export const StudentPortalLayout: React.FC = () => {
         } as React.CSSProperties
       }
     >
+      <StudentResumeTracker />
       {/* ENTERPRISE DEMO MODE BANNER */}
       {isDemoSession && (
         <div className="bg-slate-900 text-white text-xs py-2.5 px-4 font-sans flex flex-wrap items-center justify-between gap-3 shadow-md z-50">

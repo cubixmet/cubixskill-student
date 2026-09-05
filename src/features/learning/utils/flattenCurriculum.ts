@@ -10,21 +10,25 @@ export interface FlattenedLesson {
  * Guards against null/undefined course, empty/invalid modules, and missing/invalid lesson arrays.
  * Preserves existing module and lesson array order.
  */
-export function flattenCurriculum(course?: CourseEntity | null): FlattenedLesson[] {
-  if (!course || !Array.isArray(course.modules)) {
-    return [];
-  }
+export function flattenCurriculum(course?: any): FlattenedLesson[] {
+  const modules = Array.isArray(course?.modules) ? course.modules : [];
 
-  return course.modules.flatMap((module) => {
-    if (!module || !Array.isArray(module.lessons)) {
-      return [];
-    }
+  return modules.flatMap((module: any, moduleIndex: number) => {
+    const lessons = Array.isArray(module?.lessons) ? module.lessons : [];
 
-    return module.lessons
-      .filter((lesson): lesson is CourseLesson => Boolean(lesson && lesson.id))
-      .map((lesson) => ({
-        module,
-        lesson,
+    return lessons
+      .filter(Boolean)
+      .map((lesson: any, lessonIndex: number) => ({
+        module: {
+          ...module,
+          id: String(module?.id || module?.uuid || `module-${moduleIndex}`),
+          title: typeof module?.title === 'string' && module.title.trim() ? module.title : `Module ${moduleIndex + 1}`,
+        },
+        lesson: {
+          ...lesson,
+          id: String(lesson?.id || lesson?.uuid || `lesson-${moduleIndex}-${lessonIndex}`),
+          title: typeof lesson?.title === 'string' && lesson.title.trim() ? lesson.title : `Lesson ${lessonIndex + 1}`,
+        },
       }));
   });
 }

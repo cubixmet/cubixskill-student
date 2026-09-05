@@ -21,7 +21,6 @@ import { Badge } from '../../../components/ui/Badge';
 import { useAcademyStore } from '../../../stores/academy.store';
 import { useCourseStore } from '../../../stores/course.store';
 import { useAuthStore } from '../../../stores/auth.store';
-import { useEnrollmentStore } from '../../../stores/enrollment.store';
 import { useLiveClassStore, type LiveClass } from '../../../stores/live-class.store';
 import {
   resolveLiveClassStatus,
@@ -57,17 +56,13 @@ export const LiveClassesPage: React.FC = () => {
   const academies = useAcademyStore((state) => state.academies);
   const courses = useCourseStore((state) => state.courses);
   const student = useAuthStore((state) => state.student);
-  const getEnrollment = useEnrollmentStore((state) => state.getEnrollment);
-
-  const liveClasses = useLiveClassStore((state) => state.liveClasses);
-
   const academy = academies.find((a) => a.uuid === academyUuid);
   const course = courses.find((c) => c.academyUuid === academyUuid && c.uuid === courseUuid);
-  const studentUuid = student?.uuid || 'std-production-1';
-  const enrollment = getEnrollment(studentUuid, courseUuid);
-
-  const isDemoStudent = enrollment?.accessType === 'demo';
-  const isDemoExpired = isDemoStudent && enrollment?.status === 'expired';
+  const studentUuid = student?.uuid || '';
+  const liveClasses = useLiveClassStore((state) => state.liveClasses);
+  const enrollment = null;
+  const isDemoStudent = false;
+  const isDemoExpired = false;
 
   const theme = academy?.theme || { primaryColor: '#2563EB' };
 

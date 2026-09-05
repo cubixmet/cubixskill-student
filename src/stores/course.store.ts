@@ -17,13 +17,39 @@ export interface CourseLesson {
   id: string;
   title: string;
   duration?: string;
+  durationMinutes?: number;
+  durationSeconds?: number | null;
+  previewDurationSeconds?: number;
+  preview_duration_seconds?: number;
   type?: LessonType;
+  lessonType?: string;
   description?: string;
   content?: string;
   mediaUrl?: string;
   externalUrl?: string;
   thumbnailUrl?: string;
+  thumbnail_url?: string;
+  video_url?: string | null;
+  videoUrl?: string | null;
+  stream_url?: string;
+  streamUrl?: string;
+  original_url?: string;
+  processing_mode?: 'hls' | 'direct' | string;
+  processing_status?:
+    | 'QUEUED'
+    | 'PENDING'
+    | 'PROCESSING'
+    | 'READY'
+    | 'FAILED'
+    | string;
+  primary_media?: any | null;
+  media_files?: any[];
   mimeType?: string;
+  is_demo?: boolean;
+  is_preview?: boolean;
+  preview_available?: boolean;
+  public_locked?: boolean;
+  public_access_state?: 'PREVIEW' | 'PREVIEW_PROCESSING' | 'LOCKED';
   isPreview?: boolean;
   isDemoAccessible?: boolean;
   isUnlocked?: boolean;
@@ -39,6 +65,115 @@ export interface CourseModule {
   lessonsCount: number;
   duration: string;
   lessons: CourseLesson[];
+}
+
+export function mapBackendLessonToEntity(l: any): CourseLesson {
+  const isDemo = Boolean(l.is_demo === true || l.is_preview === true || l.preview_available === true);
+  const publicAccessState: 'PREVIEW' | 'PREVIEW_PROCESSING' | 'LOCKED' =
+    l.public_access_state || (isDemo ? (l.is_processing ? 'PREVIEW_PROCESSING' : 'PREVIEW') : 'LOCKED');
+  const publicLocked = typeof l.public_locked === 'boolean' ? l.public_locked : publicAccessState === 'LOCKED';
+
+  const primaryMedia =
+    l.primary_media ||
+    l.primaryMedia ||
+    null;
+
+  const mediaFiles =
+    l.media_files ||
+    l.mediaFiles ||
+    [];
+
+  const streamUrl =
+    String(
+      l.stream_url ||
+      l.streamUrl ||
+      primaryMedia?.stream_url ||
+      ''
+    );
+
+  const processingMode =
+    String(
+      l.processing_mode ||
+      l.processingMode ||
+      primaryMedia?.processing_mode ||
+      (streamUrl ? 'hls' : 'direct')
+    ).toLowerCase();
+
+  const processingStatus =
+    String(
+      l.processing_status ||
+      l.processingStatus ||
+      primaryMedia?.processing_status ||
+      'READY'
+    ).toUpperCase();
+
+  const originalUrl =
+    String(
+      l.original_url ||
+      l.originalUrl ||
+      primaryMedia?.url ||
+      l.external_url ||
+      ''
+    );
+
+  const resolvedMediaUrl =
+    processingMode === 'hls' && streamUrl
+      ? streamUrl
+      : (
+          l.video_url ||
+          l.videoUrl ||
+          originalUrl ||
+          l.external_url ||
+          ''
+        );
+
+  return {
+    id: String(l.id),
+    title: l.title || 'Lesson',
+    duration: l.duration_minutes ? `${l.duration_minutes} min` : (l.duration || ''),
+    durationMinutes: l.duration_minutes ?? 0,
+    durationSeconds: l.duration_seconds ?? null,
+    previewDurationSeconds: l.preview_duration_seconds ?? 0,
+    preview_duration_seconds: l.preview_duration_seconds ?? 0,
+    type: (l.lesson_type || l.type || 'video').toLowerCase() as any,
+    lessonType: (l.lesson_type || l.type || 'VIDEO').toUpperCase(),
+    description: l.description || '',
+    mediaUrl: resolvedMediaUrl,
+    externalUrl: l.external_url || '',
+    thumbnailUrl: l.thumbnail_url || l.thumbnail?.url || '',
+    thumbnail_url: l.thumbnail_url || l.thumbnail?.url || '',
+    video_url: l.video_url || l.videoUrl || null,
+    stream_url: streamUrl,
+    original_url: originalUrl,
+    processing_mode: processingMode,
+    processing_status: processingStatus,
+    primary_media: primaryMedia,
+    media_files: mediaFiles,
+    is_demo: isDemo,
+    is_preview: Boolean(l.is_preview ?? isDemo),
+    preview_available: Boolean(l.preview_available ?? isDemo),
+    public_locked: publicLocked,
+    public_access_state: publicAccessState,
+    isPreview: isDemo,
+    isDemoAccessible: isDemo,
+    isUnlocked: publicAccessState !== 'LOCKED',
+    allowDownload: Boolean(l.allow_download ?? l.allowDownload),
+    resources: l.resources || [],
+    quiz: l.quiz || null,
+    assignment: l.assignment || null,
+  };
+}
+
+export function mapBackendModuleToEntity(m: any): CourseModule {
+  const rawLessons = Array.isArray(m.lessons) ? m.lessons : [];
+  const lessons = rawLessons.map(mapBackendLessonToEntity);
+  return {
+    id: String(m.id || m.uuid || ''),
+    title: m.title || 'Module',
+    lessonsCount: m.lessons_count ?? m.lessonsCount ?? lessons.length,
+    duration: m.duration || '',
+    lessons,
+  };
 }
 
 export interface CoursePricing {
@@ -165,6 +300,11 @@ export function mapBackendCourseToEntity(item: any): CourseEntity {
   const acadId = String(item.academy?.id || item.academy_id || item.academy || '');
   const pricingObj = getCoursePricing(item);
 
+  const rawModules = Array.isArray(item.modules || item.curriculum || item.course_modules)
+    ? item.modules || item.curriculum || item.course_modules
+    : [];
+  const modules = rawModules.map(mapBackendModuleToEntity);
+
   return {
     id: courseId,
     uuid: courseId,
@@ -173,7 +313,8 @@ export function mapBackendCourseToEntity(item: any): CourseEntity {
     title: item.title || 'Course',
     subtitle: item.subtitle || '',
     description: item.description || '',
-    thumbnail: item.thumbnail_url || item.thumbnail?.url || item.thumbnail || '',
+    thumbnail: item.thumbnail_url || item.thumbnail?.url || item.thumbnail?.relative_path || (typeof item.thumbnail === 'string' ? item.thumbnail : '') || '',
+    promoVideoUrl: item.promo_video_url || item.promo_video?.url || item.promo_video?.relative_path || (typeof item.promo_video === 'string' ? item.promo_video : '') || '',
     instructorName: item.instructor_name || item.instructor?.full_name || 'Instructor',
     instructorAvatar: item.instructor_avatar || item.instructor?.profile_photo || '',
     category: typeof item.category === 'object' ? item.category?.name : item.category || 'General',
@@ -203,7 +344,7 @@ export function mapBackendCourseToEntity(item: any): CourseEntity {
     accessExpiryDate: 'Lifetime Access',
     whatYouWillLearn: item.what_you_will_learn || [],
     requirements: item.requirements || [],
-    modules: item.modules || [],
+    modules,
     features: {
       assignments: item.features?.assignments ?? item.features?.LESSONS ?? true,
       quizzes: item.features?.quizzes ?? item.features?.LESSONS ?? true,
@@ -229,7 +370,7 @@ interface CourseStoreState {
   setActiveCourse: (course: CourseEntity | null) => void;
 }
 
-let coursesPromise: Promise<CourseEntity[]> | null = null;
+const coursesInFlightMap = new Map<string, Promise<CourseEntity[]>>();
 
 export const useCourseStore = create<CourseStoreState>()(
   persist(
@@ -240,11 +381,14 @@ export const useCourseStore = create<CourseStoreState>()(
       isLoading: false,
 
       fetchCourses: async (academyUuid?: string) => {
-        if (coursesPromise) {
-          return coursesPromise;
+        const cacheKey = academyUuid || 'all';
+        if (coursesInFlightMap.has(cacheKey)) {
+          return coursesInFlightMap.get(cacheKey)!;
         }
+
         set({ isLoading: true });
-        coursesPromise = (async () => {
+
+        const fetchPromise = (async () => {
           try {
             const list = await studentPortalService.getCourses();
             const mapped = list.map(mapBackendCourseToEntity);
@@ -254,10 +398,12 @@ export const useCourseStore = create<CourseStoreState>()(
             set({ isLoading: false });
             return get().courses;
           } finally {
-            coursesPromise = null;
+            coursesInFlightMap.delete(cacheKey);
           }
         })();
-        return coursesPromise;
+
+        coursesInFlightMap.set(cacheKey, fetchPromise);
+        return fetchPromise;
       },
 
       fetchCourseDetail: async (courseUuid: string) => {
@@ -265,26 +411,6 @@ export const useCourseStore = create<CourseStoreState>()(
           const data = await studentPortalService.getCourseDetail(courseUuid);
           if (data) {
             const mapped = mapBackendCourseToEntity(data);
-            const currentModules = await studentPortalService.getCourseModules(courseUuid);
-            if (currentModules && currentModules.length > 0) {
-              mapped.modules = currentModules.map((m: any) => ({
-                id: String(m.id),
-                title: m.title || 'Module',
-                lessonsCount: m.lessons?.length || m.lessons_count || 0,
-                duration: m.duration || '',
-                lessons: (m.lessons || []).map((l: any) => ({
-                  id: String(l.id),
-                  title: l.title || 'Lesson',
-                  duration: l.duration_minutes ? `${l.duration_minutes} min` : '5 min',
-                  type: (l.lesson_type || 'video').toLowerCase() as any,
-                  description: l.description || '',
-                  mediaUrl: l.external_url || l.media_file?.url || '',
-                  thumbnailUrl: l.thumbnail?.url || '',
-                  isUnlocked: true,
-                })),
-              }));
-            }
-
             set((state) => {
               const existingIdx = state.courses.findIndex((c) => c.uuid === courseUuid);
               let updatedCourses = [...state.courses];

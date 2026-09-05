@@ -24,10 +24,11 @@ export function buildStudentCourseLearnPath(academyUuid?: string | null, courseU
   if (!isValidUuid(academyUuid) || !isValidUuid(courseUuid)) {
     return '/student/academies';
   }
+  const base = `/student/academies/${academyUuid}/courses/${courseUuid}/learn`;
   if (isValidUuid(lessonUuid)) {
-    return `/student/academies/${academyUuid}/courses/${courseUuid}/learn/${lessonUuid}`;
+    return `${base}?lesson=${encodeURIComponent(lessonUuid as string)}`;
   }
-  return `/student/academies/${academyUuid}/courses/${courseUuid}/learn`;
+  return base;
 }
 
 export function buildStudentCourseCurriculumPath(academyUuid?: string | null, courseUuid?: string | null): string {
@@ -44,7 +45,19 @@ export function buildStudentAcademyHomePath(academyUuid?: string | null): string
   return `/student/academies/${academyUuid}`;
 }
 
-export const buildStudentAcademyCoursesPath = buildStudentAcademyHomePath;
+export function buildPublicCourseDetailsPath(academyUuid?: string | null, courseUuid?: string | null): string {
+  if (!isValidUuid(academyUuid) || !isValidUuid(courseUuid)) {
+    return '/student/academies';
+  }
+  return `/${academyUuid}/courses/${courseUuid}`;
+}
+
+export function buildPublicAcademyCoursesPath(academyUuid?: string | null): string {
+  if (!isValidUuid(academyUuid)) {
+    return '/student/academies';
+  }
+  return `/${academyUuid}/courses`;
+}
 
 export const studentCourseRoutes = {
   home: buildStudentAcademyHomePath,
@@ -52,4 +65,6 @@ export const studentCourseRoutes = {
   learn: buildStudentCourseLearnPath,
   curriculum: buildStudentCourseCurriculumPath,
   academyCourses: buildStudentAcademyHomePath,
+  publicCourseDetails: buildPublicCourseDetailsPath,
+  publicCourses: buildPublicAcademyCoursesPath,
 };

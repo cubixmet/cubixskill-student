@@ -7,6 +7,125 @@ import { resolveMediaUrl } from '../../../services/apiClient';
 import { useAuthStore } from '../../auth/store/auth.store';
 import { saveCheckoutIntent, buildLoginUrl, setLastAcademy } from '../../../lib/navigationIntent';
 import { CoursePrice } from '../../../components/common/CoursePrice';
+import { buildPublicCourseDetailsPath, buildStudentCourseLearnPath } from '../../../utils/routeBuilder';
+
+interface PublicCourseCardItemProps {
+  course: any;
+  academyUuid: string;
+  isEnrolled: boolean;
+  primaryStyle: React.CSSProperties;
+  onEnrollClick: (course: any) => void;
+}
+
+const PublicCourseCardItem: React.FC<PublicCourseCardItemProps> = ({
+  course,
+  academyUuid,
+  isEnrolled,
+  primaryStyle,
+  onEnrollClick,
+}) => {
+  const navigate = useNavigate();
+  const [imgFailed, setImgFailed] = useState(false);
+
+  const targetId = String(course.uuid || course.id || course.slug || '');
+  const rawThumbnail = course.thumbnail || course.thumbnail_url;
+  const resolvedImgUrl = resolveMediaUrl(rawThumbnail);
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [resolvedImgUrl]);
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) {
+      return;
+    }
+    if (academyUuid && targetId) {
+      navigate(buildPublicCourseDetailsPath(academyUuid, targetId));
+    }
+  };
+
+  return (
+    <div
+      onClick={handleCardClick}
+      className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#263244] rounded-[12px] overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col justify-between w-full min-w-0 max-w-full cursor-pointer group"
+    >
+      <div>
+        <div className="relative aspect-video w-full overflow-hidden bg-slate-100 dark:bg-[#0F172A]">
+          {resolvedImgUrl && !imgFailed ? (
+            <img
+              src={resolvedImgUrl}
+              alt={course.title || 'Course'}
+              onError={() => setImgFailed(true)}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-blue-50 dark:bg-[#172033] text-[#2563EB] dark:text-[#60A5FA]">
+              <BookOpen className="w-10 h-10" />
+            </div>
+          )}
+          {course.category && (
+            <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#0F172A]/80 text-white backdrop-blur-xs">
+              {course.category}
+            </span>
+          )}
+          {isEnrolled && (
+            <span className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-600 text-white shadow-xs">
+              ✓ Already Enrolled
+            </span>
+          )}
+        </div>
+
+        <div className="p-4 space-y-2.5 text-left">
+          <div className="flex items-center justify-between text-xs">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-[#172033] text-[#475569] dark:text-[#CBD5E1]">
+              {course.level || 'Masterclass'}
+            </span>
+            <CoursePrice course={course} size="sm" showDiscountBadge />
+          </div>
+
+          <h3 className="font-semibold text-sm text-[#0F172A] dark:text-[#F8FAFC] leading-snug break-words group-hover:text-[#2563EB] dark:group-hover:text-[#60A5FA] transition-colors">
+            {course.title}
+          </h3>
+          <p className="text-[#64748B] dark:text-[#94A3B8] text-xs line-clamp-2 font-normal leading-relaxed">
+            {course.short_description || course.description}
+          </p>
+        </div>
+      </div>
+
+      <div className="p-4 pt-0">
+        {isEnrolled ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEnrollClick(course);
+            }}
+            style={primaryStyle}
+            className="w-full font-semibold text-white py-2.5 rounded-xl inline-flex flex-row items-center justify-center gap-2 whitespace-nowrap cursor-pointer shadow-2xs min-h-[42px] hover:opacity-95 transition-opacity"
+          >
+            <span className="whitespace-nowrap leading-none">Continue Learning</span>
+            <ArrowRight className="h-4 w-4 shrink-0" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (academyUuid && targetId) {
+                navigate(buildPublicCourseDetailsPath(academyUuid, targetId));
+              }
+            }}
+            style={primaryStyle}
+            className="w-full font-semibold text-white py-2.5 rounded-xl inline-flex flex-row items-center justify-center gap-2 whitespace-nowrap cursor-pointer shadow-2xs min-h-[42px] hover:opacity-95 transition-opacity"
+          >
+            <span className="whitespace-nowrap leading-none">View Details</span>
+            <ArrowRight className="h-4 w-4 shrink-0" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export const AcademyPublicCoursesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -101,7 +220,8 @@ export const AcademyPublicCoursesPage: React.FC = () => {
 
     const isEnrolled = enrolledCourseUuids.has(String(targetCourseUuid)) || enrolledCourseUuids.has(String(course.id));
     if (isEnrolled) {
-      navigate(`/student/academies/${academyUuid}/courses/${targetCourseUuid}/overview`);
+      const resumeLessonId = course.resumeLessonId || course.lastLessonId || course.currentLessonId || course.resume_lesson_id || course.last_lesson_id || course.current_lesson_id || null;
+      navigate(buildStudentCourseLearnPath(academyUuid, targetCourseUuid, resumeLessonId));
       return;
     }
 
@@ -118,7 +238,7 @@ export const AcademyPublicCoursesPage: React.FC = () => {
   const primaryStyle = { backgroundColor: academyEntity.theme?.primaryColor || '#2563EB' };
 
   return (
-    <div className="py-8 md:py-12 px-4 md:px-6 max-w-7xl mx-auto space-y-8 w-full min-w-0 font-sans">
+    <div className="py-8 md:py-12 px-4 md:px-6 max-w-7xl mx-auto space-y-8 w-full min-w-0 font-sans text-left">
       {/* COURSES HEADER */}
       <div className="space-y-1.5 text-left">
         <h1 className="text-2xl sm:text-3xl font-semibold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight">
@@ -235,75 +355,16 @@ export const AcademyPublicCoursesPage: React.FC = () => {
           {filteredCourses.map((course) => {
             const targetId = String(course.uuid || course.id || '');
             const isEnrolled = enrolledCourseUuids.has(targetId) || enrolledCourseUuids.has(String(course.id));
-            const isFree = course.price === 0 || course.is_free;
 
             return (
-              <div
+              <PublicCourseCardItem
                 key={course.id || course.slug}
-                className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#263244] rounded-[12px] overflow-hidden shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between w-full min-w-0 max-w-full"
-              >
-                <div>
-                  <div className="relative aspect-video w-full overflow-hidden bg-slate-100 dark:bg-[#0F172A]">
-                    {course.thumbnail ? (
-                      <img src={resolveMediaUrl(course.thumbnail)} alt={course.title} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-blue-50 dark:bg-[#172033] text-[#2563EB] dark:text-[#60A5FA]">
-                        <BookOpen className="w-10 h-10" />
-                      </div>
-                    )}
-                    {course.category && (
-                      <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#0F172A]/80 text-white backdrop-blur-xs">
-                        {course.category}
-                      </span>
-                    )}
-                    {isEnrolled && (
-                      <span className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-600 text-white shadow-xs">
-                        ✓ Already Enrolled
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="p-4 space-y-2.5 text-left">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-[#172033] text-[#475569] dark:text-[#CBD5E1]">
-                        {course.level || 'Masterclass'}
-                      </span>
-                      <CoursePrice course={course} size="sm" showDiscountBadge />
-                    </div>
-
-                    <h3 className="font-semibold text-sm text-[#0F172A] dark:text-[#F8FAFC] leading-snug break-words">
-                      {course.title}
-                    </h3>
-                    <p className="text-[#64748B] dark:text-[#94A3B8] text-xs line-clamp-2 font-normal leading-relaxed">
-                      {course.short_description || course.description}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-4 pt-0">
-                  {isEnrolled ? (
-                    <button
-                      type="button"
-                      onClick={() => handleEnrollClick(course)}
-                      style={primaryStyle}
-                      className="w-full font-semibold text-white py-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-[42px] hover:opacity-95 transition-opacity"
-                    >
-                      <span>Continue Learning</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleEnrollClick(course)}
-                      style={primaryStyle}
-                      className="w-full font-semibold text-white py-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs min-h-[42px] hover:opacity-95 transition-opacity"
-                    >
-                      <span>{isFree ? 'Enroll for Free' : 'Enroll in Course'}</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
+                course={course}
+                academyUuid={academyUuid}
+                isEnrolled={isEnrolled}
+                primaryStyle={primaryStyle}
+                onEnrollClick={handleEnrollClick}
+              />
             );
           })}
         </div>

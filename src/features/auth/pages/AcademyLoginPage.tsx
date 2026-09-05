@@ -13,6 +13,7 @@ import {
   buildRegisterUrl,
   setLastAcademy,
 } from '../../../lib/navigationIntent';
+import { resolveStudentEntry, resolveStudentEntryAsync } from '../../../utils/studentEntryResolver';
 import { Avatar } from '../../../components/ui/Avatar';
 
 const loginSchema = z.object({
@@ -107,8 +108,11 @@ export const AcademyLoginPage: React.FC = () => {
           }
         }
 
-        // 3. Fallback to canonical student dashboard/home
-        navigate(`/student/academies/${academyUuid}`, { replace: true });
+        // 3. Fallback to user-scoped resume location or canonical academy dashboard
+        const authStudent = useAuthStore.getState().student;
+        const studentUuid = authStudent?.id || authStudent?.uuid || '';
+        const targetRoute = await resolveStudentEntryAsync({ studentUuid, academyUuid });
+        navigate(targetRoute, { replace: true });
       }
     } catch (err: any) {
       const errCode = err.response?.data?.code || err.code;

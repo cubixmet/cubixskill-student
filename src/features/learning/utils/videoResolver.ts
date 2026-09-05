@@ -2,6 +2,11 @@ import { resolveMediaUrl } from '../../../services/apiClient';
 
 export type VideoSourceKind = 'direct' | 'hls' | 'youtube' | 'vimeo' | 'wistia' | 'embed';
 
+export type VideoSource = {
+  url: string;
+  type: 'hls' | 'direct' | 'external' | 'none';
+};
+
 export interface ResolvedVideoSource {
   rawUrl: string;
   url: string;
@@ -11,13 +16,122 @@ export interface ResolvedVideoSource {
   providerLabel?: string;
 }
 
+export function resolveLessonVideoSource(lesson: any): VideoSource {
+  const streamUrl =
+    lesson?.stream_url ||
+    lesson?.primary_media?.stream_url ||
+    '';
+
+  const directUrl =
+    lesson?.video_url ||
+    lesson?.primary_media?.video_url ||
+    '';
+
+  const mediaUrl =
+    lesson?.media_url ||
+    '';
+
+  const originalUrl =
+    lesson?.original_url ||
+    lesson?.primary_media?.original_url ||
+    '';
+
+  const externalUrl =
+    lesson?.external_url ||
+    '';
+
+  const processingMode = String(
+    lesson?.processing_mode ||
+    lesson?.primary_media?.processing_mode ||
+    ''
+  ).toUpperCase();
+
+  const processingStatus = String(
+    lesson?.processing_status ||
+    lesson?.primary_media?.processing_status ||
+    ''
+  ).toUpperCase();
+
+  const isHls =
+    Boolean(streamUrl) &&
+    (
+      processingMode === 'HLS' ||
+      streamUrl.toLowerCase().includes('.m3u8')
+    ) &&
+    (
+      !processingStatus ||
+      processingStatus === 'READY' ||
+      processingStatus === 'COMPLETED'
+    );
+
+  if (isHls) {
+    return {
+      url: resolveMediaUrl(streamUrl),
+      type: 'hls',
+    };
+  }
+
+  if (directUrl) {
+    return {
+      url: resolveMediaUrl(directUrl),
+      type: 'direct',
+    };
+  }
+
+  if (mediaUrl) {
+    return {
+      url: resolveMediaUrl(mediaUrl),
+      type: 'direct',
+    };
+  }
+
+  if (originalUrl) {
+    return {
+      url: resolveMediaUrl(originalUrl),
+      type: 'direct',
+    };
+  }
+
+  if (externalUrl) {
+    return {
+      url: externalUrl,
+      type: 'external',
+    };
+  }
+
+  return {
+    url: '',
+    type: 'none',
+  };
+}
+
 export function resolveVideoSource(lesson?: any): ResolvedVideoSource | null {
   if (!lesson) return null;
 
   const processingMode = String(lesson.processing_mode || lesson.primary_media?.processing_mode || '').toLowerCase();
 
   let rawUrl = '';
-  if (processingMode === 'direct') {
+  if (processingMode === 'hls') {
+    rawUrl = (
+      lesson.stream_url ||
+      lesson.streamUrl ||
+      lesson.primary_media?.stream_url ||
+      ''
+    ).trim();
+
+    if (!rawUrl) {
+      rawUrl = (
+        lesson.video_url ||
+        lesson.videoUrl ||
+        lesson.original_url ||
+        lesson.media_url ||
+        lesson.mediaUrl ||
+        lesson.external_url ||
+        lesson.externalUrl ||
+        ''
+      ).trim();
+    }
+  } else if (processingMode === 'direct') {
     rawUrl = (
       lesson.original_url ||
       lesson.video_url ||

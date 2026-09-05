@@ -108,6 +108,7 @@ interface AcademyState {
 }
 
 let academiesPromise: Promise<AcademyEntity[]> | null = null;
+let lastFetchedTime = 0;
 
 export const useAcademyStore = create<AcademyState>()(
   persist(
@@ -117,7 +118,13 @@ export const useAcademyStore = create<AcademyState>()(
       activeAcademy: null,
       isLoading: false,
 
-      fetchAcademies: async () => {
+      fetchAcademies: async (force = false) => {
+        const now = Date.now();
+        const currentAcademies = get().academies;
+        if (!force && currentAcademies.length > 0 && now - lastFetchedTime < 30000) {
+          return currentAcademies;
+        }
+
         if (academiesPromise) {
           return academiesPromise;
         }
@@ -125,6 +132,7 @@ export const useAcademyStore = create<AcademyState>()(
         academiesPromise = (async () => {
           try {
             const list = await studentPortalService.getAcademiesList();
+            lastFetchedTime = Date.now();
             set({ academies: list, isLoading: false });
             if (list.length > 0 && !get().activeAcademyUuid) {
               get().setActiveAcademyUuid(list[0].uuid);

@@ -35,7 +35,7 @@ export const AssignmentLessonRenderer: React.FC<Props> = ({ lesson }) => {
   const getSubmission = useAssignmentStore((state) => state.getSubmission);
   const submitAssignment = useAssignmentStore((state) => state.submitAssignment);
 
-  const studentUuid = student?.uuid || 'std-production-1';
+  const studentUuid = student?.uuid || '';
   const existingSubmission = getSubmission(studentUuid, lesson.id);
 
   // Dynamic backend assignment data

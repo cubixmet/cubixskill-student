@@ -68,26 +68,61 @@ export function useStudentCourseCurriculum(academyUuid?: string, courseUuid?: st
   }, [fetchBootstrap]);
 
   const modules: CurriculumModuleItem[] = useMemo(() => {
-    return learnData?.modules || [];
+    const rawModules = Array.isArray(learnData?.modules) ? learnData.modules : [];
+    return rawModules
+      .filter(Boolean)
+      .map((mod: any, moduleIndex: number) => {
+        const moduleId = mod?.id || mod?.uuid || `module-${moduleIndex}`;
+        const rawLessons = Array.isArray(mod?.lessons) ? mod.lessons : [];
+        return {
+          ...mod,
+          id: String(moduleId),
+          uuid: String(mod?.uuid || moduleId),
+          title: typeof mod?.title === 'string' && mod.title.trim() ? mod.title : `Module ${moduleIndex + 1}`,
+          description: typeof mod?.description === 'string' ? mod.description : '',
+          lessons: rawLessons
+            .filter(Boolean)
+            .map((lesson: any, lessonIndex: number) => {
+              const lessonId = lesson?.id || lesson?.uuid || `lesson-${moduleIndex}-${lessonIndex}`;
+              return {
+                ...lesson,
+                id: String(lessonId),
+                uuid: String(lesson?.uuid || lessonId),
+                title: typeof lesson?.title === 'string' && lesson.title.trim() ? lesson.title : `Lesson ${lessonIndex + 1}`,
+                description: typeof lesson?.description === 'string' ? lesson.description : '',
+                content: typeof lesson?.content === 'string' ? lesson.content : '',
+                lesson_type: lesson?.lesson_type || lesson?.type || 'TEXT',
+                completed: Boolean(lesson?.completed || lesson?.is_completed),
+                is_completed: Boolean(lesson?.is_completed || lesson?.completed),
+                unlocked: lesson?.unlocked !== false,
+                stream_url: lesson?.stream_url || lesson?.primary_media?.stream_url || null,
+                video_url: lesson?.video_url || null,
+                media_url: lesson?.media_url || null,
+                original_url: lesson?.original_url || lesson?.primary_media?.original_url || null,
+                external_url: lesson?.external_url || null,
+                processing_mode: lesson?.processing_mode || lesson?.primary_media?.processing_mode || null,
+                processing_status: lesson?.processing_status || lesson?.primary_media?.processing_status || null,
+                primary_media: lesson?.primary_media || null,
+                media_files: Array.isArray(lesson?.media_files) ? lesson.media_files : [],
+                mime_type: lesson?.mime_type || null,
+                moduleTitle: typeof mod?.title === 'string' && mod.title.trim() ? mod.title : `Module ${moduleIndex + 1}`,
+                moduleId: String(moduleId),
+                moduleUuid: String(mod?.uuid || moduleId),
+              };
+            }),
+        };
+      });
   }, [learnData]);
 
   const allLessons: CurriculumLessonSummary[] = useMemo(() => {
-    const list: CurriculumLessonSummary[] = [];
-    modules.forEach((mod) => {
-      if (Array.isArray(mod.lessons)) {
-        mod.lessons.forEach((les) => {
-          list.push({
-            ...les,
-            id: String(les.id || les.uuid),
-            uuid: String(les.uuid || les.id),
-            moduleTitle: mod.title,
-            moduleId: String(mod.id),
-            moduleUuid: String(mod.uuid || mod.id),
-          });
-        });
-      }
-    });
-    return list;
+    return modules.flatMap((mod) =>
+      (Array.isArray(mod.lessons) ? mod.lessons : []).map((lesson) => ({
+        ...lesson,
+        moduleTitle: mod.title,
+        moduleId: mod.id,
+        moduleUuid: mod.uuid,
+      }))
+    );
   }, [modules]);
 
   const courseTitle: string = learnData?.course?.title || 'Course Content';

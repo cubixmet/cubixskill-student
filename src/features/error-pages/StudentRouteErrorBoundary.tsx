@@ -46,6 +46,11 @@ export const StudentRouteErrorBoundary: React.FC = () => {
           <p className="text-xs text-slate-500 font-normal leading-relaxed">
             We couldn't render this course screen properly.
           </p>
+          {import.meta.env.DEV && errorMessage && (
+            <pre className="p-3 bg-slate-900 text-rose-300 rounded-xl text-[11px] font-mono text-left overflow-x-auto whitespace-pre-wrap max-h-32">
+              {errorMessage}
+            </pre>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">

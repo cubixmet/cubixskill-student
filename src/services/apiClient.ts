@@ -26,9 +26,16 @@ export class ApiError extends Error {
   }
 }
 
-export function resolveMediaUrl(url?: string | null): string {
-  if (!url || typeof url !== 'string') return '';
-  let trimmed = url.trim();
+export function resolveMediaUrl(url?: string | any | null): string {
+  if (!url) return '';
+  let rawStr = '';
+  if (typeof url === 'string') {
+    rawStr = url;
+  } else if (typeof url === 'object') {
+    rawStr = url.url || url.relative_path || url.file_url || url.path || '';
+  }
+  if (!rawStr || typeof rawStr !== 'string') return '';
+  let trimmed = rawStr.trim();
   if (!trimmed || trimmed.toLowerCase() === 'none' || trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined') {
     return '';
   }
@@ -67,6 +74,11 @@ export function clearTokens() {
 let inFlightRefreshPromise: Promise<boolean> | null = null;
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  if (endpoint.includes('/undefined') || endpoint.includes('/null')) {
+    console.warn(`[apiClient] Blocked request with invalid URL parameter: "${endpoint}"`);
+    throw new ApiError('Invalid URL parameter', 400);
+  }
+
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
 
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;

@@ -6,15 +6,18 @@ export interface StudentEnrollmentItem {
   course: {
     id: string;
     title: string;
-    slug?: string;
-    thumbnail?: string;
-    description?: string;
+    price?: number | string;
+    academy_id?: string;
     academy?: {
-      id: string;
-      name: string;
+      id?: string;
+      uuid?: string;
+      name?: string;
       logo_url?: string;
       theme_color?: string;
     };
+    slug?: string;
+    thumbnail?: string;
+    description?: string;
   };
   progress_percent?: number;
   lessons_completed?: number;
@@ -125,15 +128,11 @@ export interface StudentCourseItem {
 
 export const studentPortalService = {
   async getStudentEnrollments(): Promise<StudentEnrollmentItem[]> {
-    try {
-      const res = await apiClient.get<any>(API_ENDPOINTS.enrollments.studentEnrollments);
-      const data = res?.data || res;
-      if (Array.isArray(data)) return data;
-      if (data && Array.isArray(data.results)) return data.results;
-      return [];
-    } catch {
-      return [];
-    }
+    const res = await apiClient.get<any>(API_ENDPOINTS.enrollments.studentEnrollments);
+    const data = res?.data ?? res;
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.results)) return data.results;
+    return [];
   },
 
   async getPublicAcademyWebsite(academyUuid: string): Promise<any> {

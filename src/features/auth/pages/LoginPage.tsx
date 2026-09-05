@@ -93,7 +93,7 @@ export const LoginPage: React.FC = () => {
 
     if (success) {
       const authStudent = useAuthStore.getState().student;
-      const studentUuid = authStudent?.uuid || 'std-production-1';
+      const studentUuid = authStudent?.uuid || '';
 
       const locationStateFrom = (location.state as { from?: string | { pathname: string } })?.from;
       const fromPath = typeof locationStateFrom === 'string' ? locationStateFrom : locationStateFrom?.pathname;

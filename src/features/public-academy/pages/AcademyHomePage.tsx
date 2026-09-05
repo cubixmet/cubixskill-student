@@ -148,15 +148,14 @@ export const AcademyHomePage: React.FC = () => {
                   </div>
 
                   <div className="p-5 pt-0">
-                    <button
-                      type="button"
-                      onClick={() => handleEnrollClick(course)}
+                    <Link
+                      to={`/${academyUuid}/courses/${course.id || course.slug}`}
                       style={primaryStyle}
-                      className="w-full font-semibold text-white py-2.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-2xs hover:opacity-95 transition-opacity"
+                      className="w-full font-semibold text-white py-2.5 rounded-xl inline-flex flex-row items-center justify-center gap-2 whitespace-nowrap cursor-pointer shadow-2xs hover:opacity-95 transition-opacity text-xs"
                     >
-                      <span>{isFree ? 'Enroll for Free' : 'Enroll in Course'}</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
+                      <span className="whitespace-nowrap leading-none">View Details</span>
+                      <ArrowRight className="h-4 w-4 shrink-0" />
+                    </Link>
                   </div>
                 </div>
               );

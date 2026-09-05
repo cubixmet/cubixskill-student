@@ -22,7 +22,7 @@ export function resolveNotificationRoute(
     case 'assessment':
     case 'course_update':
       if (notification.context?.lessonUuid) {
-        return `${baseUrl}/learn/${notification.context.lessonUuid}`;
+        return `${baseUrl}/learn?lesson=${encodeURIComponent(notification.context.lessonUuid)}`;
       }
       return `${baseUrl}/curriculum`;
 

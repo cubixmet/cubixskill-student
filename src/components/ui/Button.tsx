@@ -50,13 +50,17 @@ export const Button: React.FC<ButtonProps> = ({
     >
       {isLoading ? (
         <>
-          <Loader2 className="w-4 h-4 text-current animate-spin shrink-0" />
-          <span>{loadingText || children}</span>
+          <Loader2 className="h-4 w-4 text-current animate-spin shrink-0" />
+          <span className="whitespace-nowrap leading-none">{loadingText || children}</span>
         </>
       ) : (
         <>
           {leftIcon && <span className="inline-flex items-center justify-center shrink-0">{leftIcon}</span>}
-          <span>{children}</span>
+          {typeof children === 'string' || typeof children === 'number' ? (
+            <span className="whitespace-nowrap leading-none">{children}</span>
+          ) : (
+            children
+          )}
           {rightIcon && <span className="inline-flex items-center justify-center shrink-0">{rightIcon}</span>}
         </>
       )}

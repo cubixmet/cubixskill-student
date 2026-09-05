@@ -44,12 +44,20 @@ import { ServerErrorPage } from './features/error-pages/ServerErrorPage';
 import { NetworkErrorPage } from './features/error-pages/NetworkErrorPage';
 
 import { StudentRouteErrorBoundary } from './features/error-pages/StudentRouteErrorBoundary';
+import { getStudentResumePath } from './utils/studentResume';
 import { getLastAcademy } from './lib/navigationIntent';
+import { useAuthStore } from './stores/auth.store';
 
 const RootAppRedirect: React.FC = () => {
+  const user = useAuthStore((state) => state.user);
+  const userId = user?.id || user?.uuid;
+  const userResumePath = getStudentResumePath(userId);
+  if (userResumePath) {
+    return <Navigate to={userResumePath} replace />;
+  }
   const lastAcademy = getLastAcademy();
   if (lastAcademy) {
-    return <Navigate to={`/${lastAcademy}`} replace />;
+    return <Navigate to={`/student/academies/${lastAcademy}`} replace />;
   }
   return <Navigate to="/student/academies" replace />;
 };

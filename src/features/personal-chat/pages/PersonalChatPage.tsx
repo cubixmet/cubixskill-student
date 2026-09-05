@@ -27,9 +27,9 @@ const getWebSocketUrl = (roomId: string): string => {
   const host = import.meta.env.VITE_API_HOST || 'localhost:8000';
   if (envUrl) {
     const base = envUrl.replace(/\/ws\/.*$/, '');
-    return `${base}/ws/chat/${roomId}/`;
+    return `${base}/ws/chat/${roomId}/?portal=student`;
   }
-  return `${protocol}//${host}/ws/chat/${roomId}/`;
+  return `${protocol}//${host}/ws/chat/${roomId}/?portal=student`;
 };
 
 export const PersonalChatPage: React.FC = () => {

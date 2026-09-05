@@ -35,7 +35,7 @@ export const NotificationsPage: React.FC = () => {
 
   const navigate = useNavigate();
   const student = useAuthStore((state) => state.student);
-  const studentUuid = student?.uuid || 'std-production-1';
+  const studentUuid = student?.uuid || '';
 
   const markRead = useNotificationStore((state) => state.markRead);
   const markAllRead = useNotificationStore((state) => state.markAllRead);

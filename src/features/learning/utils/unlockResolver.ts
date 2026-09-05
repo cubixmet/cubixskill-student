@@ -1,5 +1,4 @@
 import type { CourseEntity, CourseLesson } from '../../../stores/course.store';
-import type { CourseEnrollment } from '../../../stores/enrollment.store';
 import { flattenCurriculum } from './flattenCurriculum';
 
 export interface LessonAccessState {
@@ -9,33 +8,46 @@ export interface LessonAccessState {
   lockReason?: 'previous_lesson_required' | 'demo_restricted' | 'demo_expired';
 }
 
+export interface BackendEnrollmentAccess {
+  id?: string;
+  access_type?: string;
+  accessType?: string;
+  status?: string;
+  is_valid?: boolean;
+}
+
 export interface CalculateLessonAccessMapParams {
   course?: CourseEntity | null;
-  enrollment?: CourseEnrollment | null;
+  enrollment?: BackendEnrollmentAccess | null;
   completedLessonIds?: string[] | null;
   lastAccessedLessonUuid?: string | null;
+  lessonLockingEnabled?: boolean;
+}
+
+function safeLessonTitle(lesson: any): string {
+  return typeof lesson?.title === 'string' ? lesson.title.trim() : '';
 }
 
 /**
  * Calculates sequential lesson unlock states and permissions across all curriculum modules.
- * Enforces:
- * 1. Demo student restrictions (only isDemoAccessible lessons eligible)
- * 2. Demo expiration checks
- * 3. Sequential completion requirement (Lesson N+1 unlocks only after Lesson N is completed)
  */
 export function calculateLessonAccessMap(
   params: CalculateLessonAccessMapParams
 ): Map<string, LessonAccessState> {
-  const { course, enrollment, completedLessonIds: rawCompleted, lastAccessedLessonUuid } = params;
+  const { course, enrollment, completedLessonIds: rawCompleted, lastAccessedLessonUuid, lessonLockingEnabled } = params;
   const accessMap = new Map<string, LessonAccessState>();
 
   if (!course) {
     return accessMap;
   }
 
+  const isLockingEnabled = lessonLockingEnabled ?? (course as any)?.lesson_locking_enabled ?? (course as any)?.features?.LESSON_LOCKING ?? (course as any)?.features?.lesson_locking ?? true;
+
   const completedLessonIds = Array.isArray(rawCompleted) ? rawCompleted : [];
-  const isDemoStudent = enrollment?.accessType === 'demo';
-  const isDemoExpired = isDemoStudent && enrollment?.status === 'expired';
+  const accessType = String(enrollment?.access_type || enrollment?.accessType || '').toUpperCase();
+  const enrollmentStatus = String(enrollment?.status || '').toUpperCase();
+  const isDemoStudent = accessType === 'DEMO';
+  const isDemoExpired = isDemoStudent && (enrollmentStatus === 'EXPIRED' || enrollment?.is_valid === false);
 
   // 1. Flatten all lessons safely in strict module order
   const flattened = flattenCurriculum(course);
@@ -44,15 +56,18 @@ export function calculateLessonAccessMap(
   let previousRequiredCompleted = true; // First lesson is unlocked by default for eligible student
 
   orderedLessons.forEach((lesson) => {
+    const title = safeLessonTitle(lesson);
+    const titlePrefix = title ? title.split(/\s+/)[0] : '';
+    const legacyTitleId = titlePrefix ? `les-${titlePrefix}` : null;
+
     const isCompleted =
-      completedLessonIds.includes(lesson.id) ||
-      completedLessonIds.includes(`les-${lesson.title.split(' ')[0]}`);
+      completedLessonIds.includes(String(lesson?.id || '')) ||
+      (legacyTitleId ? completedLessonIds.includes(legacyTitleId) : false);
 
     const isDemoAccessible =
-      lesson.isDemoAccessible === true ||
-      lesson.title.includes('1.1') ||
-      lesson.title.includes('1.2') ||
-      lesson.id === 'les-3.2';
+      (lesson as any)?.isDemoAccessible === true ||
+      (lesson as any)?.is_demo === true ||
+      (lesson as any)?.is_preview === true;
 
     if (isDemoExpired) {
       accessMap.set(lesson.id, {
@@ -70,6 +85,15 @@ export function calculateLessonAccessMap(
         status: 'locked',
         canAccess: false,
         lockReason: 'demo_restricted',
+      });
+      return;
+    }
+
+    if (!isLockingEnabled) {
+      accessMap.set(lesson.id, {
+        lessonId: lesson.id,
+        status: isCompleted ? 'completed' : (lastAccessedLessonUuid === lesson.id ? 'in_progress' : 'unlocked'),
+        canAccess: true,
       });
       return;
     }
@@ -122,17 +146,23 @@ export function calculateLessonAccessMap(
 export function canCompleteLesson(params: {
   lesson?: CourseLesson | null;
   completedLessonIds?: string[] | null;
-  enrollment?: CourseEnrollment | null;
+  enrollment?: BackendEnrollmentAccess | null;
 }): boolean {
   const { lesson, completedLessonIds: rawCompleted, enrollment } = params;
   if (!lesson || !lesson.id) return false;
 
   const completedLessonIds = Array.isArray(rawCompleted) ? rawCompleted : [];
-  if (enrollment?.accessType === 'demo' && enrollment.status === 'expired') {
+  const accessType = String(enrollment?.access_type || enrollment?.accessType || '').toUpperCase();
+  const enrollmentStatus = String(enrollment?.status || '').toUpperCase();
+  if (accessType === 'DEMO' && enrollmentStatus === 'EXPIRED') {
     return false;
   }
+  const title = safeLessonTitle(lesson);
+  const titlePrefix = title ? title.split(/\s+/)[0] : '';
+  const legacyTitleId = titlePrefix ? `les-${titlePrefix}` : null;
+
   const isCompleted =
-    completedLessonIds.includes(lesson.id) ||
-    completedLessonIds.includes(`les-${lesson.title.split(' ')[0]}`);
+    completedLessonIds.includes(String(lesson.id)) ||
+    (legacyTitleId ? completedLessonIds.includes(legacyTitleId) : false);
   return !isCompleted;
 }

@@ -10,6 +10,7 @@ import { useAcademyStore } from '../../../stores/academy.store';
 import { useCourseStore, type CourseEntity } from '../../../stores/course.store';
 import { studentPortalService } from '../../../services/studentPortal.service';
 import { Avatar } from '../../../components/ui/Avatar';
+import { StudentResumeTracker } from '../../../components/StudentResumeTracker';
 
 import { buildStudentCourseOverviewPath, isValidUuid } from '../../../utils/routeBuilder';
 
@@ -103,6 +104,7 @@ export const AcademyCoursesPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] font-sans text-xs text-left p-4 sm:p-8 space-y-6 max-w-6xl mx-auto">
+      <StudentResumeTracker />
       {/* TOP HEADER NAVIGATION */}
       <div className="flex items-center justify-between">
         <Button

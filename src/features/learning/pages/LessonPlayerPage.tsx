@@ -204,46 +204,115 @@ export const LessonPlayerPage: React.FC = () => {
     );
   }
 
-  const activeLessonObj = selectedLessonDetail || selectedLessonSummary;
+  const activeLessonObj = selectedLessonDetail || selectedLessonSummary || null;
+
+  if (!activeLessonObj) {
+    return (
+      <div className="py-8 w-full min-h-[300px] flex items-center justify-center">
+        <StudentStateCard
+          variant="empty"
+          title="No Lesson Available"
+          description="This course does not currently have an accessible lesson."
+          actionLabel="Back to Course Overview"
+          actionPath={`/student/academies/${academyUuid}/courses/${courseUuid}/overview`}
+        />
+      </div>
+    );
+  }
 
   const courseLessonObj = {
-    id: activeLessonObj.id || activeLessonObj.uuid,
-    uuid: activeLessonObj.uuid || activeLessonObj.id,
-    title: activeLessonObj.title || selectedLessonSummary.title,
-    description: activeLessonObj.description || activeLessonObj.content || selectedLessonSummary.description || '',
-    content: activeLessonObj.content || activeLessonObj.description,
-    lesson_type: activeLessonObj.lesson_type || selectedLessonSummary.lesson_type,
-    type: resolveLessonType(activeLessonObj),
-    duration: activeLessonObj.duration_minutes ? `${activeLessonObj.duration_minutes} min` : undefined,
-    durationMinutes: activeLessonObj.duration_minutes || 0,
-    mediaUrl: activeLessonObj.media_url || activeLessonObj.external_url || '',
-    externalUrl: activeLessonObj.external_url || '',
-    allowDownload: activeLessonObj.allow_download ?? true,
-    quiz: activeLessonObj.quiz,
-    assignment: activeLessonObj.assignment,
-    resources: activeLessonObj.resources || [],
+    ...activeLessonObj,
+    id: String(activeLessonObj?.id || activeLessonObj?.uuid || ''),
+    uuid: String(activeLessonObj?.uuid || activeLessonObj?.id || ''),
+    title: activeLessonObj?.title || selectedLessonSummary?.title || 'Untitled Lesson',
+    description: activeLessonObj?.description || activeLessonObj?.content || selectedLessonSummary?.description || '',
+    content: activeLessonObj?.content || activeLessonObj?.description || '',
+    lesson_type: activeLessonObj?.lesson_type || selectedLessonSummary?.lesson_type || 'VIDEO',
+    type: resolveLessonType(activeLessonObj || {}),
+    duration: activeLessonObj?.duration_minutes ? `${activeLessonObj.duration_minutes} min` : undefined,
+    durationMinutes: Number(activeLessonObj?.duration_minutes || 0),
+
+    stream_url:
+      activeLessonObj?.stream_url ||
+      activeLessonObj?.primary_media?.stream_url ||
+      null,
+
+    video_url:
+      activeLessonObj?.video_url ||
+      activeLessonObj?.primary_media?.video_url ||
+      null,
+
+    media_url:
+      activeLessonObj?.media_url ||
+      null,
+
+    original_url:
+      activeLessonObj?.original_url ||
+      activeLessonObj?.primary_media?.original_url ||
+      null,
+
+    external_url:
+      activeLessonObj?.external_url ||
+      null,
+
+    processing_mode:
+      activeLessonObj?.processing_mode ||
+      activeLessonObj?.primary_media?.processing_mode ||
+      null,
+
+    processing_status:
+      activeLessonObj?.processing_status ||
+      activeLessonObj?.primary_media?.processing_status ||
+      null,
+
+    primary_media:
+      activeLessonObj?.primary_media || null,
+
+    media_files:
+      Array.isArray(activeLessonObj?.media_files)
+        ? activeLessonObj.media_files
+        : [],
+
+    mediaUrl:
+      activeLessonObj?.stream_url ||
+      activeLessonObj?.video_url ||
+      activeLessonObj?.media_url ||
+      activeLessonObj?.external_url ||
+      '',
+    streamUrl: activeLessonObj?.stream_url || activeLessonObj?.primary_media?.stream_url || '',
+    videoUrl: activeLessonObj?.video_url || activeLessonObj?.primary_media?.video_url || '',
+    externalUrl: activeLessonObj?.external_url || '',
+    allowDownload: activeLessonObj?.allow_download ?? true,
+    quiz: activeLessonObj?.quiz || null,
+    assignment: activeLessonObj?.assignment || null,
+    resources: Array.isArray(activeLessonObj?.resources) ? activeLessonObj.resources : [],
   };
 
   const isCurrentLessonCompleted = Boolean(activeLessonObj.completed || activeLessonObj.is_completed);
 
-  // Compute unlock access map for sidebar
-  const courseStoreModules: any[] = modules.map((m) => ({
-    id: m.id,
-    title: m.title,
-    duration: '',
-    lessonsCount: m.lessons.length,
-    lessons: m.lessons.map((l) => ({
-      id: l.id,
-      title: l.title,
-      duration: l.duration_minutes ? `${l.duration_minutes} min` : '',
-      type: resolveLessonType(l),
-      isUnlocked: l.unlocked ?? true,
-      unlocked: l.unlocked ?? true,
-      completed: Boolean(l.completed || l.is_completed),
-      lock_reason: l.lock_reason,
-      required_lesson: l.required_lesson,
-    })),
-  }));
+  // Compute unlock access map for sidebar safely
+  const courseStoreModules: any[] = (Array.isArray(modules) ? modules : []).map((m) => {
+    const lessons = Array.isArray(m?.lessons) ? m.lessons : [];
+    return {
+      id: String(m?.id || m?.uuid || ''),
+      uuid: String(m?.uuid || m?.id || ''),
+      title: typeof m?.title === 'string' && m.title.trim() ? m.title : 'Untitled Module',
+      duration: '',
+      lessonsCount: lessons.length,
+      lessons: lessons.map((l: any, index: number) => ({
+        id: String(l?.id || l?.uuid || `lesson-${index}`),
+        uuid: String(l?.uuid || l?.id || `lesson-${index}`),
+        title: typeof l?.title === 'string' && l.title.trim() ? l.title : `Lesson ${index + 1}`,
+        duration: l?.duration_minutes ? `${l.duration_minutes} min` : '',
+        type: resolveLessonType(l || {}),
+        isUnlocked: l?.unlocked !== false,
+        unlocked: l?.unlocked !== false,
+        completed: Boolean(l?.completed || l?.is_completed),
+        lock_reason: l?.lock_reason || null,
+        required_lesson: l?.required_lesson || null,
+      })),
+    };
+  });
 
   const accessMap = calculateLessonAccessMap({
     course: { modules: courseStoreModules } as any,
