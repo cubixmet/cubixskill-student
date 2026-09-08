@@ -172,7 +172,7 @@ export const FeesPage: React.FC = () => {
       case 'OVERDUE':
         return <Badge variant="danger" className="px-2.5 py-1 text-xs font-semibold">Overdue</Badge>;
       default:
-        return <Badge variant="secondary" className="px-2.5 py-1 text-xs font-semibold">Unpaid</Badge>;
+        return <Badge variant="info" className="px-2.5 py-1 text-xs font-semibold">Unpaid</Badge>;
     }
   };
 
@@ -381,7 +381,7 @@ export const FeesPage: React.FC = () => {
                   ))}
                   {selectedAccount.payments.length === 0 && (
                     <tr>
-                      <td colspan={6} className="px-4 py-6 text-center text-slate-500 dark:text-[#94A3B8]">
+                      <td colSpan={6} className="px-4 py-6 text-center text-slate-500 dark:text-[#94A3B8]">
                         No verified payment receipts found yet.
                       </td>
                     </tr>

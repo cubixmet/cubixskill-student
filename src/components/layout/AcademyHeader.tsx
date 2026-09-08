@@ -8,6 +8,8 @@ import { setLastAcademy } from '../../lib/navigationIntent';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { Avatar } from '../ui/Avatar';
 
+import { useStudentLogout } from '../../hooks/useStudentLogout';
+
 interface AcademyHeaderProps {
   academy: AcademyEntity;
 }
@@ -20,6 +22,7 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
 
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const student = useAuthStore((state) => state.student);
+  const { handleLogout: executeStudentLogout } = useStudentLogout();
 
   const baseUrl = `/${academy.uuid}`;
 
@@ -36,10 +39,7 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
   }, [pathname]);
 
   const handleLogout = async () => {
-    await authService.logoutStudent();
-    useAuthStore.getState().logout();
-    setLastAcademy(academy.uuid);
-    navigate(baseUrl, { replace: true });
+    await executeStudentLogout(academy.uuid);
   };
 
   const navLinks = [

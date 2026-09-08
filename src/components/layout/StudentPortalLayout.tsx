@@ -29,6 +29,7 @@ import { StudentResumeTracker } from '../StudentResumeTracker';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { Avatar } from '../ui/Avatar';
 import { useCourseFeatures } from '../../hooks/useCourseFeatures';
+import { useStudentLogout } from '../../hooks/useStudentLogout';
 import { COURSE_FEATURE_KEYS } from '../../constants/courseFeatures.constants';
 
 export const StudentPortalLayout: React.FC = () => {
@@ -54,11 +55,12 @@ export const StudentPortalLayout: React.FC = () => {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const { handleLogout: executeStudentLogout } = useStudentLogout();
+
   const handleLogout = async () => {
     setProfileDropdownOpen(false);
     setMobileMenuOpen(false);
-    await logout();
-    navigate('/login', { replace: true });
+    await executeStudentLogout();
   };
 
   useEffect(() => {
@@ -97,7 +99,6 @@ export const StudentPortalLayout: React.FC = () => {
     { label: 'Discussions', path: `${baseUrl}/discussions`, icon: MessageSquare, featureKey: COURSE_FEATURE_KEYS.COURSE_DISCUSSION },
     { label: 'Personal Chat', path: `${baseUrl}/personal-chat`, icon: MessageCircle, featureKey: COURSE_FEATURE_KEYS.ONE_TO_ONE_SESSION },
     { label: 'Certificates', path: `${baseUrl}/certificates`, icon: Award, featureKey: COURSE_FEATURE_KEYS.COMPLETION_CERTIFICATE },
-    { label: 'Notifications', path: `${baseUrl}/notifications`, icon: Bell },
     { label: 'Profile & Settings', path: `${baseUrl}/settings`, icon: Settings },
   ];
 
@@ -269,18 +270,6 @@ export const StudentPortalLayout: React.FC = () => {
                   >
                     <User className="w-4 h-4 text-[#64748B] dark:text-[#94A3B8]" />
                     <span>View Profile</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProfileDropdownOpen(false);
-                      navigate(`${baseUrl}/notifications`);
-                    }}
-                    className="w-full px-4 py-2 text-left font-medium text-slate-700 dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-[#172033] flex items-center gap-2.5 cursor-pointer"
-                  >
-                    <Bell className="w-4 h-4 text-[#64748B] dark:text-[#94A3B8]" />
-                    <span>Notifications</span>
                   </button>
 
                   <button

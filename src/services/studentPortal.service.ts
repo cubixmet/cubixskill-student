@@ -1,6 +1,54 @@
 import { apiClient, publicApiClient } from './apiClient';
 import { API_ENDPOINTS } from '../config/apiEndpoints';
 
+export function stringifyApiErrorValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (value == null) {
+    return '';
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map(stringifyApiErrorValue)
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+
+    const code = stringifyApiErrorValue(obj.code);
+    const detail = stringifyApiErrorValue(obj.detail);
+    const message = stringifyApiErrorValue(obj.message);
+    const error = stringifyApiErrorValue(obj.error);
+
+    const description = detail || message || error;
+
+    if (code && description) {
+      return `${code}: ${description}`;
+    }
+
+    if (description) {
+      return description;
+    }
+
+    if (code) {
+      return code;
+    }
+
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  return String(value);
+}
+
 export interface StudentEnrollmentItem {
   id: string;
   course: {
@@ -126,7 +174,73 @@ export interface StudentCourseItem {
   };
 }
 
+export interface StudentProfileMedia {
+  id: string;
+  url?: string;
+  mime_type?: string;
+  media_type?: string;
+}
+
+export interface StudentSelfProfile {
+  id: string;
+  user_id: string;
+  student_code: string;
+  full_name: string;
+  display_name: string;
+  email: string;
+  phone: string;
+  date_of_birth?: string | null;
+  bio?: string;
+  profile_photo?: StudentProfileMedia | null;
+}
+
+export interface CertificateProfileField {
+  id?: string;
+  key: string;
+  label: string;
+  type: string;
+  required: boolean;
+  editable: boolean;
+  value: string | number | boolean | null;
+  missing: boolean;
+  sort_order?: number;
+}
+
+export interface CertificateProfileDetailsResponse {
+  enrollment_id: string;
+  course_id: string;
+  certificate_status?: string;
+  fields: CertificateProfileField[];
+  missing_fields?: Array<{
+    key: string;
+    label: string;
+  }>;
+}
+
 export const studentPortalService = {
+  async getStudentProfile(): Promise<StudentSelfProfile> {
+    const res = await apiClient.get<any>(API_ENDPOINTS.students.selfProfile);
+    return res?.data ?? res;
+  },
+
+  async updateStudentProfile(payload: {
+    full_name?: string;
+    phone?: string;
+    display_name?: string;
+    date_of_birth?: string | null;
+    bio?: string;
+    profile_photo_id?: string | null;
+  }): Promise<StudentSelfProfile> {
+    const res = await apiClient.patch<any>(API_ENDPOINTS.students.selfProfile, payload);
+    return res?.data ?? res;
+  },
+
+  async uploadProfilePhoto(file: File): Promise<StudentProfileMedia> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<any>(API_ENDPOINTS.storage.upload, formData);
+    return res?.data ?? res;
+  },
   async getStudentEnrollments(): Promise<StudentEnrollmentItem[]> {
     const res = await apiClient.get<any>(API_ENDPOINTS.enrollments.studentEnrollments);
     const data = res?.data ?? res;
@@ -253,6 +367,13 @@ export const studentPortalService = {
     return res?.data || res;
   },
 
+  async getPublicCourseDetail(academyIdentifier: string, courseIdentifier: string): Promise<any> {
+    const res = await publicApiClient.get<any>(
+      API_ENDPOINTS.website.publicCourseDetail(academyIdentifier, courseIdentifier)
+    );
+    return res?.data ?? res;
+  },
+
   async getCourseModules(courseUuid: string): Promise<any[]> {
     try {
       const res = await apiClient.get<any>(API_ENDPOINTS.courses.modules(courseUuid));
@@ -322,5 +443,114 @@ export const studentPortalService = {
   async markLessonComplete(academyUuid: string, courseUuid: string, lessonUuid: string): Promise<any> {
     const res = await apiClient.post<any>(`/api/v1/enrollments/student/enrollments/academies/${academyUuid}/courses/${courseUuid}/lessons/${lessonUuid}/complete/`);
     return res?.data || res;
+  },
+
+  async getCertificateProfileDetails(enrollmentUuid: string): Promise<CertificateProfileDetailsResponse> {
+    const res = await apiClient.get<any>(API_ENDPOINTS.certificates.enrollmentProfileDetails(enrollmentUuid));
+    return res?.data || res;
+  },
+
+  async updateCertificateProfileDetails(
+    enrollmentUuid: string,
+    values: Record<string, any>
+  ): Promise<CertificateProfileDetailsResponse> {
+    const res = await apiClient.patch<any>(API_ENDPOINTS.certificates.enrollmentProfileDetails(enrollmentUuid), { values });
+    return res?.data || res;
+  },
+
+  async issueOrCheckCertificate(enrollmentUuid: string): Promise<any> {
+    const res = await apiClient.post<any>(API_ENDPOINTS.certificates.issueOrCheck(enrollmentUuid));
+    return res?.data || res;
+  },
+
+  async getStudentCertificate(certificateId: string): Promise<any> {
+    const res = await apiClient.get<any>(API_ENDPOINTS.certificates.detail(certificateId));
+    return res?.data || res;
+  },
+
+  async getCertificatePdfBlob(certificateId: string): Promise<Blob> {
+    const endpoint = API_ENDPOINTS.certificates.download(certificateId);
+    const envApiBaseUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL)
+      ? import.meta.env.VITE_API_BASE_URL
+      : 'http://localhost:8000';
+    const baseUrl = envApiBaseUrl.replace(/\/+$/, '');
+    const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
+
+    let res: Response;
+
+    try {
+      res = await fetch(url, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'X-Portal': 'student',
+        },
+      });
+    } catch (error) {
+      const message = stringifyApiErrorValue(error);
+      throw new Error(
+        message
+          ? `Unable to connect to certificate service: ${message}`
+          : 'Unable to connect to certificate service.'
+      );
+    }
+
+    if (!res.ok) {
+      let backendMessage = '';
+      let errorCode = '';
+
+      try {
+        const contentType = res.headers.get('content-type') || '';
+
+        if (contentType.includes('application/json')) {
+          const body: any = await res.json();
+          errorCode = body?.code || (typeof body?.detail === 'object' ? body?.detail?.code : '');
+          backendMessage = stringifyApiErrorValue(body);
+        } else {
+          backendMessage = (await res.text()).trim();
+        }
+      } catch {
+        // Preserve HTTP fallback
+      }
+
+      if (errorCode === 'CERTIFICATE_FONT_UNSUPPORTED' || backendMessage.includes('CERTIFICATE_FONT_UNSUPPORTED') || errorCode === 'CERTIFICATE_FONT_NOT_AVAILABLE' || backendMessage.includes('CERTIFICATE_FONT_NOT_AVAILABLE')) {
+        throw new Error('Certificate document is currently unavailable because the certificate font is not PDF-compatible. Please contact the academy.');
+      }
+
+      const fallback = `Failed to fetch certificate PDF (HTTP ${res.status})`;
+
+      throw new Error(
+        backendMessage
+          ? `${fallback}: ${backendMessage}`
+          : fallback
+      );
+    }
+
+    const contentType = res.headers.get('content-type') || '';
+
+    if (!contentType.includes('application/pdf')) {
+      let responseMessage = '';
+
+      try {
+        if (contentType.includes('application/json')) {
+          const body: unknown = await res.json();
+          responseMessage = stringifyApiErrorValue(body);
+        } else {
+          responseMessage = (await res.text()).trim();
+        }
+      } catch {
+        // Use fallback
+      }
+
+      throw new Error(
+        responseMessage || 'Response is not a valid PDF document.'
+      );
+    }
+
+    return res.blob();
+  },
+
+  async verifyPublicCertificate(verificationCode: string): Promise<any> {
+    return publicApiClient.get<any>(API_ENDPOINTS.certificates.verifyPublic(verificationCode));
   },
 };

@@ -1,6 +1,8 @@
 export interface AuthStudent {
   uuid: string;
   id?: string;
+  account_number?: string;
+  accountNumber?: string;
   user_id?: string;
   userId?: string;
   fullName: string;

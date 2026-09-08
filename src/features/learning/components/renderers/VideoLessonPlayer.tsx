@@ -48,9 +48,11 @@ const formatTime = (seconds: number): string => {
 export const VideoLessonPlayer: React.FC<Props> = ({ lesson }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const hideControlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hideControlsTimeoutRef = useRef<number | null>(null);
+  const progressSaveTimerRef = useRef<any>(null);
 
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
@@ -74,7 +76,7 @@ export const VideoLessonPlayer: React.FC<Props> = ({ lesson }) => {
   const directUrl =
     lesson?.video_url ||
     lesson?.videoUrl ||
-    lesson?.media_url ||
+    (lesson as any)?.media_url ||
     lesson?.mediaUrl ||
     lesson?.original_url ||
     lesson?.primary_media?.original_url ||

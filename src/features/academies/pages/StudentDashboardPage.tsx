@@ -32,6 +32,7 @@ import { useAuthStore } from '../../../stores/auth.store';
 import { studentPortalService } from '../../../services/studentPortal.service';
 import { buildStudentCourseOverviewPath, buildStudentCourseLearnPath, isValidUuid } from '../../../utils/routeBuilder';
 import { StudentResumeTracker } from '../../../components/StudentResumeTracker';
+import { useStudentLogout } from '../../../hooks/useStudentLogout';
 
 type DashboardDataState = 'loading' | 'success' | 'forbidden' | 'not_found' | 'error';
 
@@ -175,11 +176,12 @@ export const StudentDashboardPage: React.FC = () => {
     navigate(buildStudentCourseLearnPath(currentAcademyId, targetCourseUuid, resumeLessonId));
   };
 
+  const { handleLogout: executeStudentLogout } = useStudentLogout();
+
   const handleLogout = async () => {
     setProfileDropdownOpen(false);
     setMobileDrawerOpen(false);
-    await logout();
-    navigate('/login', { replace: true });
+    await executeStudentLogout(currentAcademyId);
   };
 
   const theme = academy?.theme || { primaryColor: '#2563EB', primarySoft: '#EFF6FF' };

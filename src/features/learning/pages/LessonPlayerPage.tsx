@@ -10,6 +10,7 @@ import { resolveLessonType } from '../utils/mediaResolver';
 import { useStudentCourseCurriculum } from '../hooks/useStudentCourseCurriculum';
 import { resolveMediaUrl } from '../../../services/apiClient';
 import { calculateLessonAccessMap } from '../utils/unlockResolver';
+import { CongratulationsModal } from '../../certificates/components/CongratulationsModal';
 
 export const LessonPlayerPage: React.FC = () => {
   const { academyUuid, courseUuid, lessonId: paramLessonId } = useParams<{
@@ -139,6 +140,14 @@ export const LessonPlayerPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const [congratulationsModal, setCongratulationsModal] = useState<{
+    isOpen: boolean;
+    courseTitle: string;
+    certificateStatus?: string;
+    missingFields?: any[];
+    certificate?: any;
+  }>({ isOpen: false, courseTitle: '' });
+
   const handleMarkComplete = async () => {
     const targetId = selectedLessonSummary?.id;
     if (!academyUuid || !courseUuid || !targetId || isCompleting) return;
@@ -150,6 +159,17 @@ export const LessonPlayerPage: React.FC = () => {
         await refetch();
         setSelectedLessonSummary((prev: any) => (prev ? { ...prev, completed: true, is_completed: true } : prev));
         setSelectedLessonDetail((prev: any) => (prev ? { ...prev, completed: true, is_completed: true } : prev));
+
+        if (res.course_just_completed || (res.course_completed && res.certificate_status)) {
+          setCongratulationsModal({
+            isOpen: true,
+            courseTitle: res.course_title || selectedLessonSummary?.course_title || 'Course',
+            certificateStatus: res.certificate_status || (res.certificate ? 'ISSUED' : 'NOT_ELIGIBLE'),
+            missingFields: res.missing_fields || [],
+            certificate: res.certificate || null,
+          });
+        }
+
         if (res.next_lesson?.id) {
           handleNavigateLesson(res.next_lesson.id);
         }
@@ -405,6 +425,35 @@ export const LessonPlayerPage: React.FC = () => {
           />
         </div>
       </div>
+
+      <CongratulationsModal
+        isOpen={congratulationsModal.isOpen}
+        onClose={() => setCongratulationsModal((prev) => ({ ...prev, isOpen: false }))}
+        courseTitle={congratulationsModal.courseTitle}
+        certificateStatus={congratulationsModal.certificateStatus}
+        missingFields={congratulationsModal.missingFields}
+        certificate={congratulationsModal.certificate}
+        onViewCertificate={() => {
+          setCongratulationsModal((prev) => ({ ...prev, isOpen: false }));
+          if (academyUuid && courseUuid) {
+            navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/certificates`);
+          }
+        }}
+        onDownloadCertificate={() => {
+          setCongratulationsModal((prev) => ({ ...prev, isOpen: false }));
+          if (congratulationsModal.certificate?.id) {
+            window.open(`/api/v1/student/certificates/${congratulationsModal.certificate.id}/download/`, '_blank');
+          } else if (academyUuid && courseUuid) {
+            navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/certificates`);
+          }
+        }}
+        onCompleteProfile={() => {
+          setCongratulationsModal((prev) => ({ ...prev, isOpen: false }));
+          if (academyUuid && courseUuid) {
+            navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/settings#certificate-details`);
+          }
+        }}
+      />
 
       {/* MOBILE CURRICULUM DRAWER MODAL */}
       {mobileDrawerOpen && (

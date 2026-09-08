@@ -45,7 +45,7 @@ export const CourseDetailPage: React.FC = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const authUser = useAuthStore((state) => state.user);
   const getCourseByUuid = useCourseStore((state) => state.getCourseByUuid);
-  const fetchCourseDetail = useCourseStore((state) => state.fetchCourseDetail);
+  const fetchPublicCourseDetail = useCourseStore((state) => state.fetchPublicCourseDetail);
 
   const [isLoadingDetail, setIsLoadingDetail] = useState(true);
   const [imgFailed, setImgFailed] = useState(false);
@@ -59,6 +59,40 @@ export const CourseDetailPage: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const course = getCourseByUuid(courseUuid || '');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCourseDetail() {
+      if (!academyUuid || !courseUuid) {
+        if (isMounted) {
+          setIsLoadingDetail(false);
+        }
+        return;
+      }
+
+      setIsLoadingDetail(true);
+
+      try {
+        await fetchPublicCourseDetail(academyUuid, courseUuid);
+      } catch (error) {
+        console.error(
+          'Failed to load public course detail:',
+          error
+        );
+      } finally {
+        if (isMounted) {
+          setIsLoadingDetail(false);
+        }
+      }
+    }
+
+    loadCourseDetail();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [academyUuid, courseUuid, fetchPublicCourseDetail]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);

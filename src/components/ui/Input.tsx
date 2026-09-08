@@ -54,22 +54,22 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             disabled={disabled || isLoading}
             readOnly={readOnly}
-            className={`w-full h-[44px] min-h-[44px] rounded-[10px] border border-[#E2E8F0] px-[14px] text-sm font-normal text-slate-900 placeholder:text-slate-400 transition-all focus:outline-hidden focus:ring-2 focus:ring-[var(--theme-primary,#2563EB)]/20 focus:border-[var(--theme-primary,#2563EB)] disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed disabled:border-slate-200 read-only:bg-slate-50 ${
+            className={`w-full h-[44px] min-h-[44px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-secondary)] px-[14px] text-sm font-normal text-[var(--text-primary)] placeholder:text-[var(--text-muted)] transition-all focus:outline-hidden focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)] disabled:opacity-60 disabled:cursor-not-allowed read-only:opacity-80 ${
               leftIcon ? 'pl-10' : ''
             } ${rightIcon || isSuccess || isLoading || error ? 'pr-10' : ''} ${
               error
                 ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500/20'
                 : isSuccess
                 ? 'border-emerald-500 focus:border-emerald-500 focus:ring-emerald-500/20'
-                : 'hover:border-slate-300'
+                : 'hover:border-[var(--brand-primary)]/50'
             } ${className}`}
             {...props}
           />
 
           {/* RIGHT INDICATORS */}
-          <div className="absolute right-3.5 text-slate-400 flex items-center gap-1.5 pointer-events-none">
+          <div className="absolute right-3.5 text-[var(--text-muted)] flex items-center gap-1.5 pointer-events-auto">
             {isLoading ? (
-              <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+              <Loader2 className="w-4 h-4 text-[var(--text-muted)] animate-spin" />
             ) : error ? (
               <AlertCircle className="w-4 h-4 text-rose-500" />
             ) : isSuccess ? (

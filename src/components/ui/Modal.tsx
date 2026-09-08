@@ -55,20 +55,21 @@ export const Modal: React.FC<ModalProps> = ({
 
       {/* DIALOG CARD */}
       <div
-        className={`relative z-10 w-full bg-white shadow-2xl border border-slate-200/90 overflow-hidden font-sans text-xs text-slate-900 flex flex-col transition-all duration-200 animate-in zoom-in-95 ${maxWidths[maxWidth]} ${mobileStyles[mobileVariant]}`}
+        className={`relative z-10 w-full bg-[var(--surface)] shadow-2xl border border-[var(--border)] overflow-hidden font-sans text-xs text-[var(--text-primary)] flex flex-col transition-all duration-200 animate-in zoom-in-95 ${maxWidths[maxWidth]} ${mobileStyles[mobileVariant]}`}
       >
         {/* Header */}
         {(title || subtitle) && (
-          <div className="px-4 py-3.5 md:px-6 md:py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white sticky top-0 z-10">
+          <div className="px-4 py-3.5 md:px-6 md:py-4 border-b border-[var(--border)] flex items-center justify-between shrink-0 bg-[var(--surface)] sticky top-0 z-10">
             <div>
-              {title && <h3 className="text-base md:text-lg font-bold text-slate-900 tracking-tight leading-tight">{title}</h3>}
-              {subtitle && <p className="text-xs text-slate-500 font-normal mt-0.5">{subtitle}</p>}
+              {title && <h3 className="text-base md:text-lg font-semibold text-[var(--text-primary)] tracking-tight leading-tight">{title}</h3>}
+              {subtitle && <p className="text-xs text-[var(--text-muted)] font-normal mt-0.5">{subtitle}</p>}
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
+              className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
               title="Close modal (Esc)"
+              aria-label={title ? `Close ${title}` : 'Close modal'}
             >
               <X className="w-4 h-4" />
             </button>

@@ -5,6 +5,7 @@ import type { AuthStudent, LoginCredentials, SessionResponse } from '../types/au
 export function mapUserToAuthStudent(user: any): AuthStudent {
   const profileId = String(user?.student_profile?.id || user?.id || '');
   const realUserId = String(user?.id || '');
+  const accountNumber = user?.account_number || user?.accountNumber || user?.student_profile?.student_code || undefined;
   const fullName = user?.full_name || user?.email?.split('@')[0] || 'Student';
   const email = user?.email || '';
   const phone = user?.phone || user?.student_profile?.phone || '';
@@ -13,6 +14,8 @@ export function mapUserToAuthStudent(user: any): AuthStudent {
   return {
     id: profileId,
     uuid: profileId,
+    account_number: accountNumber,
+    accountNumber: accountNumber,
     user_id: realUserId,
     userId: realUserId,
     fullName,
@@ -151,6 +154,15 @@ export const authService = {
     });
     clearTokens();
     return true;
+  },
+
+  changePassword: async (payload: { current_password: string; new_password: string; confirm_password: string }): Promise<any> => {
+    const res = await apiClient.post<any>(API_ENDPOINTS.auth.changePassword, {
+      current_password: payload.current_password,
+      new_password: payload.new_password,
+      confirm_password: payload.confirm_password,
+    });
+    return res;
   },
 
   createSandboxDemoSession: (): { student: AuthStudent; sessionRef: string } => {

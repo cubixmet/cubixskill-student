@@ -30,7 +30,8 @@ import { LessonPlayerPage } from './features/learning/pages/LessonPlayerPage';
 import { CurriculumPage } from './features/curriculum/pages/CurriculumPage';
 import { LiveClassesPage } from './features/live-classes/pages/LiveClassesPage';
 import { CertificatesPage } from './features/certificates/pages/CertificatesPage';
-import { NotificationsPage } from './features/notifications/pages/NotificationsPage';
+import { PublicCertificateVerifyPage } from './features/certificates/pages/PublicCertificateVerifyPage';
+
 import { DiscussionsPage } from './features/discussions/pages/DiscussionsPage';
 import { PersonalChatPage } from './features/personal-chat/pages/PersonalChatPage';
 import { AnnouncementsPage } from './features/announcements/pages/AnnouncementsPage';
@@ -67,6 +68,10 @@ export const router = createBrowserRouter([
   {
     path: '/',
     element: <RootAppRedirect />,
+  },
+  {
+    path: '/verify/certificate/:verificationCode',
+    element: <PublicCertificateVerifyPage />,
   },
   {
     path: '/login',
@@ -148,9 +153,8 @@ export const router = createBrowserRouter([
               { path: 'discussions', element: <DiscussionsPage /> },
               { path: 'personal-chat', element: <PersonalChatPage /> },
               { path: 'personal-chat/:conversationUuid', element: <PersonalChatPage /> },
-              { path: 'downloads', element: <Navigate to="../overview" replace /> },
-              { path: 'calendar', element: <Navigate to="../notifications" replace /> },
-              { path: 'notifications', element: <NotificationsPage /> },
+              { path: 'calendar', element: <Navigate to="../overview" replace /> },
+              { path: 'notifications', element: <Navigate to="../overview" replace /> },
               { path: 'settings', element: <ProfileSettingsPage /> },
             ],
           },

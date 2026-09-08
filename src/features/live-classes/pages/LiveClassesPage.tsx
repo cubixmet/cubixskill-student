@@ -94,7 +94,7 @@ export const LiveClassesPage: React.FC = () => {
   const cancelledSessions = courseSessions.filter((s) => resolveLiveClassStatus(s) === 'CANCELLED');
 
   const handleJoinClass = (session: LiveClass) => {
-    const access = canAccessLiveClass({ liveClass: session, enrollment });
+    const access = canAccessLiveClass({ liveClass: session, enrollment: enrollment || undefined });
     if (!access.canAccess) {
       if (access.reason === 'demo_expired') {
         setAccessError('Your demo access period has expired. Upgrade to full course enrollment to join live classes.');
@@ -289,7 +289,7 @@ export const LiveClassesPage: React.FC = () => {
         {upcomingSessions.length > 0 ? (
           <div className="space-y-3">
             {upcomingSessions.map((session) => {
-              const access = canAccessLiveClass({ liveClass: session, enrollment });
+              const access = canAccessLiveClass({ liveClass: session, enrollment: enrollment || undefined });
               return (
                 <Card key={session.liveClassUuid} padding="md" className="bg-white border border-slate-200/80 rounded-2xl shadow-2xs space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">

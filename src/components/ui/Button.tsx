@@ -28,10 +28,10 @@ export const Button: React.FC<ButtonProps> = ({
 
   const variants = {
     primary:
-      'bg-[var(--theme-primary,#2563EB)] text-white hover:bg-[var(--theme-primary-hover,#1D4ED8)] shadow-2xs focus-visible:ring-[var(--theme-primary,#2563EB)]',
-    secondary: 'bg-slate-900 text-white hover:bg-slate-800 shadow-2xs focus-visible:ring-slate-900',
-    outline: 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-400',
-    ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-slate-400',
+      'bg-[var(--brand-primary)] text-[var(--brand-primary-foreground,#ffffff)] hover:bg-[var(--brand-primary-hover)] shadow-2xs focus-visible:ring-[var(--brand-primary)]',
+    secondary: 'bg-[var(--surface-hover)] text-[var(--text-primary)] hover:bg-[var(--border)] shadow-2xs focus-visible:ring-[var(--brand-primary)]',
+    outline: 'border border-[var(--border)] bg-[var(--surface-secondary)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:ring-[var(--brand-primary)]',
+    ghost: 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-visible:ring-[var(--brand-primary)]',
     danger: 'bg-rose-600 text-white hover:bg-rose-700 shadow-2xs focus-visible:ring-rose-600',
   };
 

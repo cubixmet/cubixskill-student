@@ -9,6 +9,7 @@ import { useAcademyStore } from '../../../stores/academy.store';
 import { useAuthStore } from '../../../stores/auth.store';
 import { resolveMediaUrl } from '../../../services/apiClient';
 import { Avatar } from '../../../components/ui/Avatar';
+import { useStudentLogout } from '../../../hooks/useStudentLogout';
 
 export const MyAcademiesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -28,9 +29,10 @@ export const MyAcademiesPage: React.FC = () => {
     navigate(`/${uuid}`);
   };
 
+  const { handleLogout: executeStudentLogout } = useStudentLogout();
+
   const handleLogout = async () => {
-    await logout();
-    navigate('/login', { replace: true });
+    await executeStudentLogout();
   };
 
   return (

@@ -363,6 +363,7 @@ interface CourseStoreState {
   isLoading: boolean;
   fetchCourses: (academyUuid?: string) => Promise<CourseEntity[]>;
   fetchCourseDetail: (courseUuid: string) => Promise<CourseEntity | null>;
+  fetchPublicCourseDetail: (academyIdentifier: string, courseIdentifier: string) => Promise<CourseEntity | null>;
   getCoursesByAcademy: (academyUuid: string) => CourseEntity[];
   getStudentCoursesByAcademy: (academyUuid: string) => CourseEntity[];
   getCourseByUuid: (courseUuid: string) => CourseEntity | undefined;
@@ -431,6 +432,40 @@ export const useCourseStore = create<CourseStoreState>()(
           // Failure loading detail
         }
         return get().getCourseByUuid(courseUuid) || null;
+      },
+
+      fetchPublicCourseDetail: async (academyIdentifier: string, courseIdentifier: string) => {
+        try {
+          const data = await studentPortalService.getPublicCourseDetail(academyIdentifier, courseIdentifier);
+          if (!data) {
+            return null;
+          }
+          const mapped = mapBackendCourseToEntity(data);
+          set((state) => {
+            const existingIdx = state.courses.findIndex(
+              (c) =>
+                c.uuid === courseIdentifier ||
+                c.id === courseIdentifier ||
+                c.uuid === mapped.uuid ||
+                c.id === mapped.id
+            );
+            const updatedCourses = [...state.courses];
+            if (existingIdx >= 0) {
+              updatedCourses[existingIdx] = mapped;
+            } else {
+              updatedCourses.push(mapped);
+            }
+            return {
+              courses: updatedCourses,
+              activeCourse: mapped,
+              activeCourseUuid: mapped.uuid || mapped.id || courseIdentifier,
+            };
+          });
+          return mapped;
+        } catch (error) {
+          console.error('Failed to load public course detail:', error);
+          return null;
+        }
       },
 
       getCoursesByAcademy: (academyUuid) => {
