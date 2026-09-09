@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { studentPortalService } from '../services/studentPortal.service';
+import { resolveMediaUrl } from '../services/apiClient';
 
 export type LessonType =
   | 'video'
@@ -292,18 +293,28 @@ export interface CourseEntity {
     announcements: boolean;
     discussions: boolean;
     personalChat?: boolean;
+    lessonLockingReport?: boolean;
   };
 }
 
 export function mapBackendCourseToEntity(item: any): CourseEntity {
   const courseId = String(item.id || item.uuid || '');
-  const acadId = String(item.academy?.id || item.academy_id || item.academy || '');
+  const acadId = String(item.academy_uuid || item.academy?.id || item.academy_id || item.academy || '');
   const pricingObj = getCoursePricing(item);
 
   const rawModules = Array.isArray(item.modules || item.curriculum || item.course_modules)
     ? item.modules || item.curriculum || item.course_modules
     : [];
   const modules = rawModules.map(mapBackendModuleToEntity);
+
+  const isLockingReportEnabled = Boolean(
+    item.features?.lesson_locking_report_enabled ??
+    item.features?.lesson_locking_report?.enabled ??
+    item.features?.LESSON_LOCKING_REPORT?.enabled ??
+    item.features?.lesson_locking_enabled ??
+    item.features?.student_report_enabled ??
+    false
+  );
 
   return {
     id: courseId,
@@ -313,8 +324,20 @@ export function mapBackendCourseToEntity(item: any): CourseEntity {
     title: item.title || 'Course',
     subtitle: item.subtitle || '',
     description: item.description || '',
-    thumbnail: item.thumbnail_url || item.thumbnail?.url || item.thumbnail?.relative_path || (typeof item.thumbnail === 'string' ? item.thumbnail : '') || '',
-    promoVideoUrl: item.promo_video_url || item.promo_video?.url || item.promo_video?.relative_path || (typeof item.promo_video === 'string' ? item.promo_video : '') || '',
+    thumbnail: resolveMediaUrl(
+      item.thumbnail_url ||
+      item.thumbnail?.url ||
+      item.thumbnail?.file_url ||
+      item.thumbnail?.relative_path ||
+      (typeof item.thumbnail === 'string' ? item.thumbnail : '')
+    ),
+    promoVideoUrl: resolveMediaUrl(
+      item.promo_video_url ||
+      item.promo_video?.url ||
+      item.promo_video?.file_url ||
+      item.promo_video?.relative_path ||
+      (typeof item.promo_video === 'string' ? item.promo_video : '')
+    ),
     instructorName: item.instructor_name || item.instructor?.full_name || 'Instructor',
     instructorAvatar: item.instructor_avatar || item.instructor?.profile_photo || '',
     category: typeof item.category === 'object' ? item.category?.name : item.category || 'General',
@@ -335,9 +358,9 @@ export function mapBackendCourseToEntity(item: any): CourseEntity {
     isFeatured: Boolean(item.is_featured),
     demoEnabled: Boolean(item.demo_enabled),
     demoDurationDays: item.demo_duration_days || 0,
-    progressPercent: Number(item.progress_percent) || 0,
-    completedLessonsCount: Number(item.completed_lessons_count) || 0,
-    totalLessonsCount: Number(item.total_lessons) || 0,
+    progressPercent: Math.min(100, Math.max(0, Math.round(Number(item.progress_percentage ?? item.progress_percent ?? item.progressPercent ?? 0)))),
+    completedLessonsCount: Number(item.completed_lessons ?? item.completed_lessons_count ?? item.completedLessonsCount ?? 0),
+    totalLessonsCount: Number(item.total_lessons ?? item.total_lessons_count ?? item.totalLessonsCount ?? 0),
     currentModuleTitle: item.current_module_title || 'Module 1',
     currentLessonTitle: item.current_lesson_title || 'Introduction',
     lastActiveAt: 'Recently',
@@ -352,6 +375,7 @@ export function mapBackendCourseToEntity(item: any): CourseEntity {
       certificates: item.features?.certificates ?? item.features?.COMPLETION_CERTIFICATE ?? true,
       announcements: item.features?.announcements ?? item.features?.COURSE_ANNOUNCEMENT ?? true,
       discussions: item.features?.discussions ?? item.features?.COURSE_DISCUSSION ?? true,
+      lessonLockingReport: isLockingReportEnabled,
     },
   };
 }
@@ -391,7 +415,7 @@ export const useCourseStore = create<CourseStoreState>()(
 
         const fetchPromise = (async () => {
           try {
-            const list = await studentPortalService.getCourses();
+            const list = await studentPortalService.getCourses(academyUuid);
             const mapped = list.map(mapBackendCourseToEntity);
             set({ courses: mapped, isLoading: false });
             return mapped;

@@ -9,6 +9,7 @@ import { Skeleton } from '../../../components/ui/Skeleton';
 import { useAcademyStore } from '../../../stores/academy.store';
 import { useCourseStore, type CourseEntity } from '../../../stores/course.store';
 import { studentPortalService } from '../../../services/studentPortal.service';
+import { resolveMediaUrl } from '../../../services/apiClient';
 import { Avatar } from '../../../components/ui/Avatar';
 import { StudentResumeTracker } from '../../../components/StudentResumeTracker';
 
@@ -55,7 +56,7 @@ export const AcademyCoursesPage: React.FC = () => {
               courseUuid: realCourseUuid,
               title: crs.title || 'Enrolled Course',
               description: crs.description || '',
-              thumbnail: crs.thumbnail ? (typeof crs.thumbnail === 'string' ? crs.thumbnail : crs.thumbnail.url) : '',
+              thumbnail: resolveMediaUrl(crs.thumbnail || crs.thumbnail_url || crs.course?.thumbnail || crs.course?.thumbnail_url),
               level: crs.level || 'Intermediate',
               instructorName: crs.instructor?.full_name || 'Lead Instructor',
               progressPercent: e.progress_percent || 0,
@@ -171,8 +172,8 @@ export const AcademyCoursesPage: React.FC = () => {
             <Card key={crs.id} padding="none" className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#263244] rounded-2xl overflow-hidden shadow-2xs hover:shadow-sm transition-all flex flex-col justify-between">
               <div>
                 <div className="relative h-48 bg-slate-200 dark:bg-[#172033] overflow-hidden">
-                  {crs.thumbnail ? (
-                    <img src={crs.thumbnail} alt={crs.title} className="w-full h-full object-cover" />
+                  {resolveMediaUrl(crs.thumbnail) ? (
+                    <img src={resolveMediaUrl(crs.thumbnail)} alt={crs.title} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-blue-50 dark:bg-[#172033] text-[#2563EB] dark:text-[#60A5FA]">
                       <BookOpen className="w-12 h-12" />
@@ -181,7 +182,7 @@ export const AcademyCoursesPage: React.FC = () => {
                   <Badge variant="neutral" className="absolute top-3 left-3 bg-white/90 dark:bg-[#0F172A]/90 dark:text-[#F8FAFC] backdrop-blur-xs font-semibold">
                     {crs.level}
                   </Badge>
-                  {crs.progressPercent === 100 && (
+                  {(academy?.features?.student_reports !== false) && crs.progressPercent === 100 && (
                     <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-600 text-white flex items-center gap-1 shadow-xs">
                       <CheckCircle className="w-3 h-3" />
                       Completed
@@ -195,18 +196,20 @@ export const AcademyCoursesPage: React.FC = () => {
                     <span className="text-xs text-slate-500 dark:text-[#94A3B8] font-medium block mt-1">Instructor: {crs.instructorName}</span>
                   </div>
 
-                  <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-[#263244]">
-                    <div className="flex justify-between text-xs font-semibold text-slate-700 dark:text-[#CBD5E1]">
-                      <span>Course Progress</span>
-                      <span style={{ color: theme.primaryColor }}>{crs.progressPercent}%</span>
+                  {(academy?.features?.student_reports !== false) && crs?.features?.lessonLockingReport !== false && (
+                    <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-[#263244]">
+                      <div className="flex justify-between text-xs font-semibold text-slate-700 dark:text-[#CBD5E1]">
+                        <span>Course Progress</span>
+                        <span style={{ color: theme.primaryColor }}>{crs.progressPercent}%</span>
+                      </div>
+                      <div className="w-full bg-slate-100 dark:bg-[#263244] h-2.5 rounded-full overflow-hidden">
+                        <div
+                          style={{ backgroundColor: theme.primaryColor, width: `${crs.progressPercent}%` }}
+                          className="h-full rounded-full transition-all duration-300"
+                        />
+                      </div>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-[#263244] h-2.5 rounded-full overflow-hidden">
-                      <div
-                        style={{ backgroundColor: theme.primaryColor, width: `${crs.progressPercent}%` }}
-                        className="h-full rounded-full transition-all duration-300"
-                      />
-                    </div>
-                  </div>
+                  )}
 
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-slate-100 dark:border-[#263244] space-y-1 text-xs text-slate-600 dark:text-[#CBD5E1]">
                     <span className="text-[10px] text-slate-400 dark:text-[#64748B] font-mono block uppercase">Last Lesson</span>

@@ -30,6 +30,7 @@ import { useAcademyStore, type AcademyEntity } from '../../../stores/academy.sto
 import { useCourseStore, type CourseEntity } from '../../../stores/course.store';
 import { useAuthStore } from '../../../stores/auth.store';
 import { studentPortalService } from '../../../services/studentPortal.service';
+import { resolveMediaUrl } from '../../../services/apiClient';
 import { buildStudentCourseOverviewPath, buildStudentCourseLearnPath, isValidUuid } from '../../../utils/routeBuilder';
 import { StudentResumeTracker } from '../../../components/StudentResumeTracker';
 import { useStudentLogout } from '../../../hooks/useStudentLogout';
@@ -52,6 +53,7 @@ export const StudentDashboardPage: React.FC = () => {
   // Academy Store
   const fetchAcademies = useAcademyStore((state) => state.fetchAcademies);
   const getAcademyByUuid = useAcademyStore((state) => state.getAcademyByUuid);
+  const activeAcademy = useAcademyStore((state) => state.activeAcademy) || getAcademyByUuid(currentAcademyId);
   const setActiveAcademyUuid = useAcademyStore((state) => state.setActiveAcademyUuid);
   const setActiveAcademy = useAcademyStore((state) => state.setActiveAcademy);
 
@@ -556,15 +558,17 @@ export const StudentDashboardPage: React.FC = () => {
                 <Clock className="w-4 h-4 text-[#2563EB] dark:text-[#60A5FA]" />
                 <h3 className="font-semibold text-sm text-slate-900 dark:text-[#F8FAFC]">Continue Learning</h3>
               </div>
-              <span className="text-xs font-semibold" style={{ color: theme.primaryColor }}>
-                {activeCourse.progressPercent}% Completed
-              </span>
+              {activeAcademy?.features?.student_reports !== false && activeCourse?.features?.lessonLockingReport !== false && (
+                <span className="text-xs font-semibold" style={{ color: theme.primaryColor }}>
+                  {activeCourse.progressPercent}% Completed
+                </span>
+              )}
             </div>
 
             <div className="flex flex-col md:flex-row items-center gap-5">
               <div className="relative w-full md:w-64 h-36 bg-slate-100 dark:bg-[#172033] rounded-xl overflow-hidden shrink-0">
-                {activeCourse.thumbnail ? (
-                  <img src={activeCourse.thumbnail} alt={activeCourse.title} className="w-full h-full object-cover" />
+                {resolveMediaUrl(activeCourse.thumbnail) ? (
+                  <img src={resolveMediaUrl(activeCourse.thumbnail)} alt={activeCourse.title} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-slate-400">
                     <BookOpen className="w-10 h-10" />
@@ -586,14 +590,16 @@ export const StudentDashboardPage: React.FC = () => {
                 </div>
 
                 {/* PROGRESS BAR */}
-                <div className="space-y-1.5">
-                  <div className="w-full bg-slate-100 dark:bg-[#263244] h-2 rounded-full overflow-hidden">
-                    <div
-                      style={{ backgroundColor: theme.primaryColor, width: `${activeCourse.progressPercent}%` }}
-                      className="h-full rounded-full transition-all duration-300"
-                    />
+                {activeAcademy?.features?.student_reports !== false && activeCourse?.features?.lessonLockingReport !== false && (
+                  <div className="space-y-1.5">
+                    <div className="w-full bg-slate-100 dark:bg-[#263244] h-2 rounded-full overflow-hidden">
+                      <div
+                        style={{ backgroundColor: theme.primaryColor, width: `${activeCourse.progressPercent}%` }}
+                        className="h-full rounded-full transition-all duration-300"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                   <span className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium">
@@ -651,8 +657,8 @@ export const StudentDashboardPage: React.FC = () => {
                 >
                   <div>
                     <div className="relative h-44 bg-slate-200 dark:bg-[#172033] overflow-hidden">
-                      {crs.thumbnail ? (
-                        <img src={crs.thumbnail} alt={crs.title} className="w-full h-full object-cover" />
+                      {resolveMediaUrl(crs.thumbnail) ? (
+                        <img src={resolveMediaUrl(crs.thumbnail)} alt={crs.title} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-blue-50 dark:bg-[#172033] text-[#2563EB] dark:text-[#60A5FA]">
                           <BookOpen className="w-10 h-10" />
@@ -675,18 +681,20 @@ export const StudentDashboardPage: React.FC = () => {
                         <span className="text-xs text-slate-500 dark:text-[#94A3B8] font-normal block mt-0.5">Instructor: {crs.instructorName}</span>
                       </div>
 
-                      <div className="space-y-1 pt-2 border-t border-slate-100 dark:border-[#263244]">
-                        <div className="flex justify-between text-xs font-semibold text-slate-700 dark:text-[#CBD5E1]">
-                          <span>Progress</span>
-                          <span style={{ color: theme.primaryColor }}>{crs.progressPercent}%</span>
+                      {activeAcademy?.features?.student_reports !== false && crs?.features?.lessonLockingReport !== false && (
+                        <div className="space-y-1 pt-2 border-t border-slate-100 dark:border-[#263244]">
+                          <div className="flex justify-between text-xs font-semibold text-slate-700 dark:text-[#CBD5E1]">
+                            <span>Progress</span>
+                            <span style={{ color: theme.primaryColor }}>{crs.progressPercent}%</span>
+                          </div>
+                          <div className="w-full bg-slate-100 dark:bg-[#263244] h-2 rounded-full overflow-hidden">
+                            <div
+                              style={{ backgroundColor: theme.primaryColor, width: `${crs.progressPercent}%` }}
+                              className="h-full rounded-full transition-all duration-300"
+                            />
+                          </div>
                         </div>
-                        <div className="w-full bg-slate-100 dark:bg-[#263244] h-2 rounded-full overflow-hidden">
-                          <div
-                            style={{ backgroundColor: theme.primaryColor, width: `${crs.progressPercent}%` }}
-                            className="h-full rounded-full transition-all duration-300"
-                          />
-                        </div>
-                      </div>
+                      )}
                     </div>
                   </div>
 

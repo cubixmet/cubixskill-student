@@ -300,6 +300,7 @@ export const studentPortalService = {
             secondaryColor: '#1E293B',
             accentColor: '#3B82F6',
           },
+          features: item.features || { lesson_locking: true, student_reports: true },
           enrolledCoursesCount: item.enrolled_courses_count || item.total_courses_count || 0,
           overallProgressPercent: item.overall_progress_percent || 0,
           lastActiveAt: item.last_active_at || 'Recently active',
@@ -350,11 +351,15 @@ export const studentPortalService = {
     return Array.from(academyMap.values());
   },
 
-  async getCourses(): Promise<any[]> {
+  async getCourses(academyUuid?: string): Promise<any[]> {
     try {
-      const res = await apiClient.get<any>(API_ENDPOINTS.courses.list);
+      const endpoint = academyUuid
+        ? `/api/v1/enrollments/student/enrollments/academies/${encodeURIComponent(academyUuid)}/courses`
+        : API_ENDPOINTS.courses.list;
+      const res = await apiClient.get<any>(endpoint);
       const data = res?.data || res;
       if (Array.isArray(data)) return data;
+      if (data && Array.isArray(data.courses)) return data.courses;
       if (data && Array.isArray(data.results)) return data.results;
       return [];
     } catch {

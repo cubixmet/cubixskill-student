@@ -22,6 +22,8 @@ import type { CourseModule, CourseLesson, LessonType } from '../../../stores/cou
 import type { LessonAccessState } from '../utils/unlockResolver';
 import { resolveLessonType } from '../utils/mediaResolver';
 
+import { useAcademyStore } from '../../../stores/academy.store';
+
 interface Props {
   modules: CourseModule[];
   activeLessonId: string;
@@ -41,6 +43,7 @@ export const LessonSidebar: React.FC<Props> = ({
   isMobileDrawer = false,
   onCloseDrawer,
 }) => {
+  const activeAcademy = useAcademyStore((state) => state.activeAcademy);
   // Find which module contains active lesson
   const initialActiveModId = (() => {
     for (const mod of modules) {
@@ -127,21 +130,23 @@ export const LessonSidebar: React.FC<Props> = ({
       </div>
 
       {/* OVERALL PROGRESS SUMMARY */}
-      <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200/60 dark:border-[#334155]">
-        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700 dark:text-[#CBD5E1]">
-          <span>Overall Course Progress</span>
-          <span className="text-blue-600 dark:text-[#60A5FA] font-bold">{progressPercent}%</span>
+      {activeAcademy?.features?.student_reports !== false && (
+        <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 dark:bg-[#0F172A] border border-slate-200/60 dark:border-[#334155]">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700 dark:text-[#CBD5E1]">
+            <span>Overall Course Progress</span>
+            <span className="text-blue-600 dark:text-[#60A5FA] font-bold">{progressPercent}%</span>
+          </div>
+          <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-[#263244] overflow-hidden">
+            <div
+              className="h-full bg-blue-600 rounded-full transition-all duration-300"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+          <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-medium block text-right">
+            {completedCount} of {totalCount} units completed
+          </span>
         </div>
-        <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-[#263244] overflow-hidden">
-          <div
-            className="h-full bg-blue-600 rounded-full transition-all duration-300"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
-        <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-medium block text-right">
-          {completedCount} of {totalCount} units completed
-        </span>
-      </div>
+      )}
 
       {/* MODULE ACCORDION LIST */}
       <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-1 hide-scrollbar">

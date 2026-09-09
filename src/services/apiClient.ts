@@ -32,11 +32,17 @@ export function resolveMediaUrl(url?: string | any | null): string {
   if (typeof url === 'string') {
     rawStr = url;
   } else if (typeof url === 'object') {
-    rawStr = url.url || url.relative_path || url.file_url || url.path || '';
+    rawStr = url.url || url.file_url || url.relative_path || url.path || '';
   }
   if (!rawStr || typeof rawStr !== 'string') return '';
   let trimmed = rawStr.trim();
-  if (!trimmed || trimmed.toLowerCase() === 'none' || trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined') {
+  if (
+    !trimmed ||
+    trimmed.toLowerCase() === 'none' ||
+    trimmed.toLowerCase() === 'null' ||
+    trimmed.toLowerCase() === 'undefined' ||
+    trimmed.endsWith('(IMAGE)')
+  ) {
     return '';
   }
 

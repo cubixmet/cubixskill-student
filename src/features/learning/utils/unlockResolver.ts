@@ -41,7 +41,7 @@ export function calculateLessonAccessMap(
     return accessMap;
   }
 
-  const isLockingEnabled = lessonLockingEnabled ?? (course as any)?.lesson_locking_enabled ?? (course as any)?.features?.LESSON_LOCKING ?? (course as any)?.features?.lesson_locking ?? true;
+  const isLockingEnabled = lessonLockingEnabled ?? (course as any)?.lesson_locking_report_enabled ?? (course as any)?.lesson_locking_enabled ?? (course as any)?.features?.LESSON_LOCKING_REPORT ?? (course as any)?.features?.LESSON_LOCKING ?? (course as any)?.features?.lesson_locking ?? false;
 
   const completedLessonIds = Array.isArray(rawCompleted) ? rawCompleted : [];
   const accessType = String(enrollment?.access_type || enrollment?.accessType || '').toUpperCase();

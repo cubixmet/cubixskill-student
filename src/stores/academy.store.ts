@@ -48,6 +48,10 @@ export interface AcademyEntity {
     github?: string;
   };
   theme: AcademyTheme;
+  features?: {
+    lesson_locking?: boolean;
+    student_reports?: boolean;
+  };
   enrolledCoursesCount: number;
   overallProgressPercent: number;
   lastActiveAt: string;

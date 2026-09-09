@@ -12,6 +12,7 @@ import { AuthGuard } from './features/auth/components/AuthGuard';
 import { GuestGuard } from './features/auth/components/GuestGuard';
 import { AcademyEnrollmentGuard } from './features/auth/components/AcademyEnrollmentGuard';
 import { CourseEnrollmentGuard } from './features/auth/components/CourseEnrollmentGuard';
+import { StudentCourseFeatureGuard } from './components/StudentCourseFeatureGuard';
 
 import { PublicAcademyLayout } from './features/public-academy/layouts/PublicAcademyLayout';
 import { AcademyHomePage } from './features/public-academy/pages/AcademyHomePage';
@@ -141,18 +142,18 @@ export const router = createBrowserRouter([
             children: [
               { index: true, element: <Navigate to="overview" replace /> },
               { path: 'overview', element: <OverviewPage /> },
-              { path: 'learn', element: <LessonPlayerPage /> },
-              { path: 'learn/:lessonId', element: <LessonPlayerPage /> },
-              { path: 'curriculum', element: <CurriculumPage /> },
+              { path: 'learn', element: <StudentCourseFeatureGuard featureKey="LESSONS"><LessonPlayerPage /></StudentCourseFeatureGuard> },
+              { path: 'learn/:lessonId', element: <StudentCourseFeatureGuard featureKey="LESSONS"><LessonPlayerPage /></StudentCourseFeatureGuard> },
+              { path: 'curriculum', element: <StudentCourseFeatureGuard featureKey="LESSONS"><CurriculumPage /></StudentCourseFeatureGuard> },
               { path: 'assignments', element: <Navigate to="../overview" replace /> },
               { path: 'quizzes', element: <Navigate to="../overview" replace /> },
-              { path: 'live-classes', element: <LiveClassesPage /> },
-              { path: 'certificates', element: <CertificatesPage /> },
-              { path: 'fees', element: <FeesPage /> },
-              { path: 'announcements', element: <AnnouncementsPage /> },
-              { path: 'discussions', element: <DiscussionsPage /> },
-              { path: 'personal-chat', element: <PersonalChatPage /> },
-              { path: 'personal-chat/:conversationUuid', element: <PersonalChatPage /> },
+              { path: 'live-classes', element: <StudentCourseFeatureGuard featureKey="LIVE_CLASS"><LiveClassesPage /></StudentCourseFeatureGuard> },
+              { path: 'certificates', element: <StudentCourseFeatureGuard featureKey="COMPLETION_CERTIFICATE"><CertificatesPage /></StudentCourseFeatureGuard> },
+              { path: 'fees', element: <StudentCourseFeatureGuard featureKey="FEE_COLLECTION"><FeesPage /></StudentCourseFeatureGuard> },
+              { path: 'announcements', element: <StudentCourseFeatureGuard featureKey="COURSE_ANNOUNCEMENT"><AnnouncementsPage /></StudentCourseFeatureGuard> },
+              { path: 'discussions', element: <StudentCourseFeatureGuard featureKey="COURSE_DISCUSSION"><DiscussionsPage /></StudentCourseFeatureGuard> },
+              { path: 'personal-chat', element: <StudentCourseFeatureGuard featureKey="ONE_TO_ONE_SESSION"><PersonalChatPage /></StudentCourseFeatureGuard> },
+              { path: 'personal-chat/:conversationUuid', element: <StudentCourseFeatureGuard featureKey="ONE_TO_ONE_SESSION"><PersonalChatPage /></StudentCourseFeatureGuard> },
               { path: 'calendar', element: <Navigate to="../overview" replace /> },
               { path: 'notifications', element: <Navigate to="../overview" replace /> },
               { path: 'settings', element: <ProfileSettingsPage /> },

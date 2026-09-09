@@ -11,6 +11,7 @@ import { useStudentCourseCurriculum } from '../hooks/useStudentCourseCurriculum'
 import { resolveMediaUrl } from '../../../services/apiClient';
 import { calculateLessonAccessMap } from '../utils/unlockResolver';
 import { CongratulationsModal } from '../../certificates/components/CongratulationsModal';
+import { useCourseStore } from '../../../stores/course.store';
 
 export const LessonPlayerPage: React.FC = () => {
   const { academyUuid, courseUuid, lessonId: paramLessonId } = useParams<{
@@ -157,6 +158,7 @@ export const LessonPlayerPage: React.FC = () => {
       const res = await studentPortalService.markLessonComplete(academyUuid, courseUuid, targetId);
       if (res && (res.success || res.course_progress_percent !== undefined)) {
         await refetch();
+        useCourseStore.getState().fetchCourses(academyUuid);
         setSelectedLessonSummary((prev: any) => (prev ? { ...prev, completed: true, is_completed: true } : prev));
         setSelectedLessonDetail((prev: any) => (prev ? { ...prev, completed: true, is_completed: true } : prev));
 
@@ -439,10 +441,26 @@ export const LessonPlayerPage: React.FC = () => {
             navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/certificates`);
           }
         }}
-        onDownloadCertificate={() => {
+        onDownloadCertificate={async () => {
+          const certId = congratulationsModal.certificate?.id;
           setCongratulationsModal((prev) => ({ ...prev, isOpen: false }));
-          if (congratulationsModal.certificate?.id) {
-            window.open(`/api/v1/student/certificates/${congratulationsModal.certificate.id}/download/`, '_blank');
+          if (certId) {
+            try {
+              const blob = await studentPortalService.getCertificatePdfBlob(certId);
+              const fileName = `Certificate_${congratulationsModal.certificate?.certificate_number || certId}.pdf`;
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = fileName;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              setTimeout(() => URL.revokeObjectURL(url), 10000);
+            } catch {
+              if (academyUuid && courseUuid) {
+                navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/certificates`);
+              }
+            }
           } else if (academyUuid && courseUuid) {
             navigate(`/student/academies/${academyUuid}/courses/${courseUuid}/certificates`);
           }

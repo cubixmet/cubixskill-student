@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAcademyStore } from '../../../stores/academy.store';
 
 interface LearningProgressCardProps {
   completedLessons: number;
@@ -15,6 +16,11 @@ export const LearningProgressCard: React.FC<LearningProgressCardProps> = ({
   subtitle = 'Overall course completion metrics',
   className = '',
 }) => {
+  const activeAcademy = useAcademyStore((state) => state.activeAcademy);
+  if (activeAcademy?.features?.student_reports === false) {
+    return null;
+  }
+
   const percentVal = Math.min(100, Math.max(0, Math.round(percentage || 0)));
   const remaining = Math.max(0, totalLessons - completedLessons);
 
