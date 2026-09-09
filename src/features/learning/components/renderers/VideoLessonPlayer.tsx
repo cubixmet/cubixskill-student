@@ -603,7 +603,7 @@ export const VideoLessonPlayer: React.FC<Props> = ({ lesson }) => {
                   {showQualityMenu && (
                     <div
                       role="menu"
-                      className="absolute right-0 bottom-full mb-2 min-w-[150px] overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-md shadow-xl z-50 py-1 text-xs text-slate-200"
+                      className="absolute right-0 bottom-full mb-2 min-w-[120px] max-w-[calc(100vw-32px)] overflow-hidden rounded-xl border border-white/10 bg-black/90 backdrop-blur-md shadow-xl z-50 py-1 text-xs text-slate-200"
                     >
                       {/* Auto Option */}
                       <button

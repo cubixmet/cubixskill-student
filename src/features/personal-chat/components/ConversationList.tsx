@@ -337,7 +337,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
         <div className="space-y-4 font-sans text-xs">
           <div className="space-y-2">
             <label className="block font-semibold text-slate-900">Filter By Status</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {(['All', 'Unread', 'Open', 'Waiting for Reply', 'Resolved', 'With Attachments'] as const).map((tab) => (
                 <button
                   key={tab}

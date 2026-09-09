@@ -222,7 +222,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({
                   ) : (
                     <FileText className="w-4 h-4 text-amber-600 shrink-0" />
                   )}
-                  <span className="truncate max-w-[140px]">{att.name}</span>
+                  <span className="truncate flex-1 min-w-0">{att.name}</span>
                   <span className="text-[10px] text-slate-400 font-mono">{att.size}</span>
                   <button
                     type="button"

@@ -120,7 +120,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
               ) : (
                 <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
               )}
-              <span className="truncate max-w-[120px]">{att.name}</span>
+              <span className="truncate flex-1 min-w-0">{att.name}</span>
               <span className="text-[10px] text-slate-400 font-mono">{att.size}</span>
               <button
                 type="button"

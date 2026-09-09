@@ -193,17 +193,17 @@ export const StudentPortalLayout: React.FC = () => {
           </div>
         </div>
 
-        {/* MOBILE HEADER: [Academy Logo + Name (minmax(0,1fr))] [Notification (44px)] */}
-        <div className="grid md:hidden grid-cols-[minmax(0,1fr)_44px] items-center gap-2.5 w-full h-full">
+        {/* MOBILE HEADER: [Academy Logo + Name (min-w-0 flex-1)] [Actions (shrink-0)] */}
+        <div className="flex md:hidden items-center justify-between gap-2 w-full h-full min-w-0">
           {/* 1. BRANDING BLOCK (LOGO + ACADEMY NAME & SUBTITLE) */}
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Avatar src={academy?.logoUrl} name={academy?.name || 'CodeVerse Software Academy'} type="academy" size="sm" />
-            <div className="min-w-0">
-              <span className="text-[13px] font-semibold text-slate-950 dark:text-[#F8FAFC] truncate block leading-tight">
-                {academy?.name || 'CodeVerse Software Academy'}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Avatar src={academy?.logoUrl} name={academy?.name || 'Academy'} type="academy" size="sm" />
+            <div className="min-w-0 flex-1">
+              <span className="text-[12px] sm:text-[13px] font-semibold text-slate-950 dark:text-[#F8FAFC] truncate block leading-tight">
+                {academy?.name || 'Academy'}
               </span>
               <span className="text-[10px] sm:text-[11px] font-normal text-slate-500 dark:text-[#94A3B8] truncate block">
-                {course?.title ? (isDemoSession ? `${course.title} (DEMO)` : course.title) : 'Node.js Microservices & Event-Driven Systems'}
+                {course?.title ? (isDemoSession ? `${course.title} (DEMO)` : course.title) : 'Course Portal'}
               </span>
             </div>
           </div>
@@ -212,12 +212,12 @@ export const StudentPortalLayout: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate(`${baseUrl}/notifications`)}
-            className="w-11 h-11 rounded-xl border border-slate-200 dark:border-[#263244] bg-white dark:bg-[#172033] flex items-center justify-center text-slate-600 dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-[#1E293B] cursor-pointer relative min-h-[44px] min-w-[44px]"
+            className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl border border-slate-200 dark:border-[#263244] bg-white dark:bg-[#172033] flex items-center justify-center text-slate-600 dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-[#1E293B] cursor-pointer relative min-h-[40px] min-w-[40px] shrink-0"
             title="Notifications"
           >
             <Bell className="w-4 h-4 text-slate-600 dark:text-[#CBD5E1]" />
             <span
-              className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full animate-pulse"
+              className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 w-2 h-2 rounded-full animate-pulse"
               style={{ backgroundColor: theme.primaryColor }}
             />
           </button>

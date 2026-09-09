@@ -395,7 +395,7 @@ export const AssignmentsPage: React.FC = () => {
             {/* SUBMISSION METHOD CARDS */}
             <div className="space-y-2">
               <span className="font-semibold text-xs text-slate-900 block">Select Submission Method</span>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setSelectedMethod('url')}
