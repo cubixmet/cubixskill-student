@@ -1,5 +1,6 @@
 import { apiClient, publicApiClient } from './apiClient';
 import { API_ENDPOINTS } from '../config/apiEndpoints';
+import { env } from '../config/env';
 
 export function stringifyApiErrorValue(value: unknown): string {
   if (typeof value === 'string') {
@@ -475,10 +476,7 @@ export const studentPortalService = {
 
   async getCertificatePdfBlob(certificateId: string): Promise<Blob> {
     const endpoint = API_ENDPOINTS.certificates.download(certificateId);
-    const envApiBaseUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL)
-      ? import.meta.env.VITE_API_BASE_URL
-      : 'http://localhost:8000';
-    const baseUrl = envApiBaseUrl.replace(/\/+$/, '');
+    const baseUrl = env.apiBaseUrl.replace(/\/+$/, '');
     const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
 
     let res: Response;
