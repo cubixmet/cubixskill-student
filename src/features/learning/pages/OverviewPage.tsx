@@ -159,27 +159,29 @@ export const OverviewPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 font-sans text-xs text-left max-w-5xl mx-auto w-full px-1 sm:px-0">
+    <div className="space-y-4 sm:space-y-6 font-sans text-xs text-left max-w-5xl mx-auto w-full px-0 box-border min-w-0">
       {/* 1. BREADCRUMB NAVIGATION */}
-      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-xs text-[#64748B] dark:text-[#94A3B8]">
-        <Link to={`/student/academies/${academyUuid}`} className="hover:text-[#2563EB] dark:hover:text-[#60A5FA] transition-colors">
+      <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 sm:gap-2 text-xs text-[#64748B] dark:text-[#94A3B8] max-w-full min-w-0 overflow-hidden leading-normal">
+        <Link to={`/student/academies/${academyUuid}`} className="hover:text-[#2563EB] dark:hover:text-[#60A5FA] transition-colors shrink-0 font-medium whitespace-nowrap">
           Courses
         </Link>
-        <span>/</span>
-        <span className="text-[#0F172A] dark:text-[#F8FAFC] font-semibold truncate max-w-xs">{courseTitle}</span>
-        <span>/</span>
-        <span className="text-[#2563EB] dark:text-[#60A5FA] font-semibold">Overview</span>
+        <span className="shrink-0 text-slate-300 dark:text-[#334155]">/</span>
+        <span className="text-[#0F172A] dark:text-[#F8FAFC] font-semibold truncate max-w-[130px] sm:max-w-xs md:max-w-md min-w-0" title={courseTitle}>
+          {courseTitle}
+        </span>
+        <span className="shrink-0 text-slate-300 dark:text-[#334155]">/</span>
+        <span className="text-[#2563EB] dark:text-[#60A5FA] font-semibold shrink-0 whitespace-nowrap">Overview</span>
       </nav>
 
       {/* 2. COURSE TABS ROW */}
       <CourseTabs academyUuid={academyUuid || ''} courseUuid={courseUuid || ''} activeTab="overview" />
 
       {/* 3. HERO COURSE HEADER BANNER */}
-      <Card padding="md" className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#263244] shadow-2xs rounded-2xl space-y-4">
-        <div className="flex flex-col md:flex-row gap-5 md:gap-6 items-stretch">
+      <Card padding="md" className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#263244] shadow-2xs rounded-2xl p-4 sm:p-6 space-y-4 min-w-0 max-w-full overflow-hidden">
+        <div className="flex flex-col md:flex-row gap-4 sm:gap-5 md:gap-6 items-stretch min-w-0">
           {/* THUMBNAIL */}
           {thumbnailPath && resolveMediaUrl(thumbnailPath) ? (
-            <div className="w-full md:w-64 h-44 sm:h-52 md:h-auto bg-slate-100 dark:bg-[#0F172A] rounded-xl overflow-hidden shrink-0 border border-slate-200 dark:border-[#263244] relative aspect-video md:aspect-auto flex items-center justify-center">
+            <div className="w-full md:w-64 h-48 sm:h-52 md:h-auto bg-slate-100 dark:bg-[#0F172A] rounded-xl overflow-hidden shrink-0 border border-slate-200/80 dark:border-[#263244] relative aspect-video md:aspect-auto flex items-center justify-center max-w-full">
               <img
                 src={resolveMediaUrl(thumbnailPath)}
                 alt={courseTitle}
@@ -196,24 +198,24 @@ export const OverviewPage: React.FC = () => {
           ) : null}
 
           {/* COURSE META DETAILS */}
-          <div className="flex-1 space-y-3 flex flex-col justify-between">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-[rgba(16,185,129,0.12)] text-emerald-700 dark:text-[#6EE7B7] border border-emerald-200 dark:border-emerald-900/50">
+          <div className="flex-1 space-y-3 flex flex-col justify-between min-w-0">
+            <div className="space-y-2 min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-[rgba(16,185,129,0.12)] text-emerald-700 dark:text-[#6EE7B7] border border-emerald-200 dark:border-emerald-900/50 shrink-0">
                   <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-[#6EE7B7]" />
                   <span>{accessType === 'demo' ? 'Demo Access' : 'Full Lifetime Access'}</span>
                 </span>
-                <span className="text-slate-200 dark:text-[#334155] font-medium">•</span>
-                <span className="text-slate-500 dark:text-[#94A3B8] font-medium text-xs">{courseLevel}</span>
-                <span className="text-slate-200 dark:text-[#334155] font-medium">•</span>
-                <span className="text-slate-500 dark:text-[#94A3B8] font-medium text-xs">{courseLanguage}</span>
+                <span className="text-slate-200 dark:text-[#334155] font-medium shrink-0">•</span>
+                <span className="text-slate-500 dark:text-[#94A3B8] font-medium text-xs shrink-0">{courseLevel}</span>
+                <span className="text-slate-200 dark:text-[#334155] font-medium shrink-0">•</span>
+                <span className="text-slate-500 dark:text-[#94A3B8] font-medium text-xs shrink-0">{courseLanguage}</span>
               </div>
 
-              <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-[#F8FAFC] tracking-tight leading-snug break-words min-w-0">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-slate-900 dark:text-[#F8FAFC] tracking-tight leading-snug break-words min-w-0">
                 {courseTitle}
               </h1>
 
-              <p className="text-xs text-slate-600 dark:text-[#CBD5E1] font-normal leading-relaxed">
+              <p className="text-xs text-slate-600 dark:text-[#CBD5E1] font-normal leading-relaxed break-words min-w-0">
                 Academy: <span className="font-semibold text-slate-900 dark:text-[#F8FAFC]">{academyName}</span> • Lead Instructor:{' '}
                 <span className="font-semibold text-slate-900 dark:text-[#F8FAFC]">{instructorName}</span>
               </p>
@@ -221,7 +223,7 @@ export const OverviewPage: React.FC = () => {
 
             {/* MAIN ACTIONS */}
             {isFeatureEnabled(COURSE_FEATURE_KEYS.LESSONS) && (
-              <div className="pt-3 border-t border-slate-100 dark:border-[#263244] grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+              <div className="pt-3 border-t border-slate-100 dark:border-[#263244] grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 w-full">
                 <Button
                   onClick={handleStartOrContinue}
                   className="w-full font-semibold justify-center text-white min-h-[44px] rounded-xl shadow-2xs cursor-pointer bg-[#2563EB] hover:bg-[#1D4ED8]"
@@ -301,20 +303,20 @@ export const OverviewPage: React.FC = () => {
       </Card>
 
       {/* 6. INSTRUCTOR SUMMARY CARD */}
-      <Card padding="md" className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#263244] rounded-2xl shadow-2xs space-y-4 text-left">
+      <Card padding="md" className="bg-white dark:bg-[#111827] border border-[#E2E8F0] dark:border-[#263244] rounded-2xl shadow-2xs space-y-4 text-left min-w-0">
         <h2 className="text-base font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
           Course Instructor
         </h2>
-        <div className="flex items-start gap-4">
+        <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4 min-w-0">
           <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-[rgba(37,99,235,0.12)] border border-blue-200 dark:border-[rgba(59,130,246,0.2)] text-[#2563EB] dark:text-[#60A5FA] font-bold text-base flex items-center justify-center shrink-0">
             {instructorName.charAt(0)}
           </div>
-          <div className="space-y-1">
-            <h3 className="font-semibold text-sm text-[#0F172A] dark:text-[#F8FAFC]">
+          <div className="space-y-1 min-w-0 flex-1">
+            <h3 className="font-semibold text-sm text-[#0F172A] dark:text-[#F8FAFC] break-words">
               {instructorName}
             </h3>
             <span className="text-xs text-[#64748B] dark:text-[#94A3B8] font-medium block">Domain Expert &amp; Lead Instructor</span>
-            <p className="text-xs text-[#475569] dark:text-[#CBD5E1] font-normal leading-relaxed pt-1">
+            <p className="text-xs text-[#475569] dark:text-[#CBD5E1] font-normal leading-relaxed pt-1 break-words">
               Passionate educator committed to helping students master concepts through practical exercises and real-world examples.
             </p>
           </div>

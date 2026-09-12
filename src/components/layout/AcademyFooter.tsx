@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ShieldCheck, Mail, Phone } from 'lucide-react';
 import type { AcademyEntity } from '../../stores/academy.store';
+import { Avatar } from '../ui/Avatar';
 
 interface AcademyFooterProps {
   academy: AcademyEntity;
@@ -17,13 +18,7 @@ export const AcademyFooter: React.FC<AcademyFooterProps> = ({ academy }) => {
           {/* BRAND COLUMN */}
           <div className="md:col-span-2 space-y-4">
             <Link to={`/${academy.uuid}`} className="flex items-center gap-3">
-              {academy.logoUrl ? (
-                <img src={academy.logoUrl} alt={academy.name} className="w-10 h-10 rounded-2xl object-cover border border-slate-200 dark:border-[#263244]" />
-              ) : (
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-[rgba(37,99,235,0.12)] text-[#2563EB] dark:text-[#60A5FA] font-semibold text-xs flex items-center justify-center">
-                  {academy.name.charAt(0)}
-                </div>
-              )}
+              <Avatar src={academy.logoUrl} name={academy.name} type="academy" size="md" />
               <span className="font-semibold text-base text-slate-900 dark:text-[#F8FAFC]">{academy.name}</span>
             </Link>
             <p className="text-slate-500 dark:text-[#94A3B8] max-w-sm text-xs leading-relaxed font-normal">{academy.tagline}</p>
@@ -45,11 +40,6 @@ export const AcademyFooter: React.FC<AcademyFooterProps> = ({ academy }) => {
               <li>
                 <Link to={`/${academy.uuid}/courses`} className="text-slate-600 dark:text-[#CBD5E1] hover:text-[#2563EB] dark:hover:text-[#60A5FA] transition-colors">
                   Course Catalog
-                </Link>
-              </li>
-              <li>
-                <Link to={`/${academy.uuid}/contact`} className="text-slate-600 dark:text-[#CBD5E1] hover:text-[#2563EB] dark:hover:text-[#60A5FA] transition-colors">
-                  Contact Support
                 </Link>
               </li>
               <li>

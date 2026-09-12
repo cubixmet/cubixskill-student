@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isValidUuid, buildStudentCourseOverviewPath, buildStudentCourseCurriculumPath } from '../../../utils/routeBuilder';
 import { useCourseFeatures } from '../../../hooks/useCourseFeatures';
@@ -15,6 +15,19 @@ interface CourseTabsProps {
 export const CourseTabs: React.FC<CourseTabsProps> = ({ academyUuid, courseUuid, activeTab }) => {
   const navigate = useNavigate();
   const { isFeatureEnabled } = useCourseFeatures(courseUuid);
+  const activeTabRef = useRef<HTMLButtonElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeTabRef.current) {
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      activeTabRef.current.scrollIntoView({
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        block: 'nearest',
+        inline: 'center',
+      });
+    }
+  }, [activeTab]);
 
   if (!isValidUuid(academyUuid) || !isValidUuid(courseUuid)) {
     return null;
@@ -37,22 +50,26 @@ export const CourseTabs: React.FC<CourseTabsProps> = ({ academyUuid, courseUuid,
   });
 
   return (
-    <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#263244] rounded-[10px] p-[5px] flex gap-1.5 overflow-x-auto whitespace-nowrap hide-scrollbar w-full">
+    <div
+      ref={containerRef}
+      className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#263244] rounded-xl p-1 sm:p-1.5 flex flex-row items-center gap-1 sm:gap-1.5 overflow-x-auto whitespace-nowrap hide-scrollbar w-full max-w-full touch-pan-x shrink-0 box-border"
+    >
       {visibleTabs.map((tab) => {
         const isActive = tab.id === activeTab;
         return (
           <button
             key={tab.id}
+            ref={isActive ? activeTabRef : undefined}
             type="button"
             onClick={() => !isActive && navigate(tab.path)}
             style={{
-              backgroundColor: isActive ? 'var(--brand-primary)' : 'transparent',
+              backgroundColor: isActive ? 'var(--brand-primary, #2563EB)' : 'transparent',
               color: isActive ? 'var(--brand-primary-foreground, #FFFFFF)' : undefined,
             }}
-            className={`shrink-0 px-4 py-2 min-h-[36px] font-medium text-xs rounded-[8px] transition-all cursor-pointer select-none ${
+            className={`shrink-0 min-h-[44px] px-3.5 sm:px-4 py-2.5 font-semibold text-xs rounded-lg transition-all cursor-pointer select-none whitespace-nowrap flex items-center justify-center ${
               isActive
-                ? 'font-medium shadow-none hover:opacity-90'
-                : 'text-[#475569] dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-[#172033] hover:text-[#0F172A] dark:hover:text-[#F8FAFC]'
+                ? 'shadow-xs hover:opacity-90'
+                : 'text-slate-600 dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-[#172033] hover:text-slate-900 dark:hover:text-[#F8FAFC]'
             }`}
           >
             {tab.label}

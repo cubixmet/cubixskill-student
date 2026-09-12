@@ -48,5 +48,8 @@ export const API_ENDPOINTS = {
   },
   notifications: {
     list: '/api/v1/notifications/notifications/',
+    unreadCount: '/api/v1/notifications/notifications/unread-count/',
+    markRead: (id: string) => `/api/v1/notifications/notifications/${id}/read/`,
+    markAllRead: '/api/v1/notifications/notifications/read-all/',
   },
 };

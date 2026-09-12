@@ -6,6 +6,7 @@ import { useAuthStore } from '../../../stores/auth.store';
 import { AcademyHeader } from '../../../components/layout/AcademyHeader';
 import { AcademyFooter } from '../../../components/layout/AcademyFooter';
 import { resolveMediaUrl } from '../../../services/apiClient';
+import { ScrollToTop } from '../../../components/layout/ScrollToTop';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -74,6 +75,60 @@ export const PublicAcademyLayout: React.FC = () => {
     return () => { isMounted = false; };
   }, [academyUuid, isValidUuid]);
 
+  const academyInfo = publicData?.academy || {};
+  const themeConfig = publicData?.theme || {};
+
+  const primaryColor = themeConfig.primary_color || academyInfo.theme_color || '#2563EB';
+
+  const logoUrl = academyInfo.logo
+    ? resolveMediaUrl(academyInfo.logo)
+    : themeConfig.logo_url
+    ? resolveMediaUrl(themeConfig.logo_url)
+    : '';
+
+  const faviconUrl = academyInfo.favicon
+    ? resolveMediaUrl(academyInfo.favicon)
+    : themeConfig.favicon_url
+    ? resolveMediaUrl(themeConfig.favicon_url)
+    : '';
+
+  const heroImageUrl = resolveMediaUrl(publicData?.home?.hero_image_url || themeConfig.hero_image_url) || logoUrl;
+
+  useEffect(() => {
+    const rawFavicon = faviconUrl || logoUrl;
+    const resolved = rawFavicon ? resolveMediaUrl(rawFavicon) : '/favicon.svg';
+
+    // Remove existing icon links
+    const existingIcons = document.querySelectorAll("link[rel*='icon']");
+    existingIcons.forEach((el) => el.remove());
+
+    const newLink = document.createElement('link');
+    newLink.rel = 'icon';
+
+    const cleanPath = resolved.split('?')[0].toLowerCase();
+    if (cleanPath.endsWith('.svg')) {
+      newLink.type = 'image/svg+xml';
+    } else if (cleanPath.endsWith('.png')) {
+      newLink.type = 'image/png';
+    } else if (cleanPath.endsWith('.jpg') || cleanPath.endsWith('.jpeg')) {
+      newLink.type = 'image/jpeg';
+    } else if (cleanPath.endsWith('.ico')) {
+      newLink.type = 'image/x-icon';
+    }
+
+    // Stable cache busting / versioning parameter
+    const versionedUrl = resolved.includes('?')
+      ? resolved
+      : `${resolved}?v=${encodeURIComponent(publicData?.updated_at || publicData?.published_at || '1')}`;
+
+    newLink.href = versionedUrl;
+    document.getElementsByTagName('head')[0].appendChild(newLink);
+
+    if (academyInfo.name) {
+      document.title = `${academyInfo.name} | Academy Portal`;
+    }
+  }, [faviconUrl, logoUrl, academyInfo.name, publicData?.updated_at, publicData?.published_at]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4 font-sans text-xs bg-slate-50 dark:bg-[#0B0F17]">
@@ -85,27 +140,20 @@ export const PublicAcademyLayout: React.FC = () => {
     );
   }
 
-  if (!isValidUuid || isNotFound || !publicData) {
+  if (isNotFound) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-4 font-sans text-xs bg-slate-50 dark:bg-[#0B0F17]">
-        <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-          <AlertCircle className="w-6 h-6" />
-        </div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-[#F8FAFC]">Academy Not Found</h1>
-        <p className="text-slate-500 dark:text-[#94A3B8] max-w-md">
-          This academy does not exist or is no longer publicly available. Please check the URL or return to login.
+        <AlertCircle className="w-10 h-10 text-amber-500" />
+        <h1 className="text-xl font-bold text-slate-900 dark:text-white">Academy Not Found</h1>
+        <p className="text-slate-500 dark:text-slate-400 max-w-md">
+          The academy code <code className="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">{academyUuid}</code> was not found or is unavailable.
         </p>
-        <Link to="/login" className="px-5 py-2.5 bg-[#2563EB] text-white font-semibold rounded-xl hover:bg-[#1D4ED8] transition-all">
-          Go to Student Login
+        <Link to="/academies" className="px-4 py-2 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors">
+          Browse All Academies
         </Link>
       </div>
     );
   }
-
-  const academyInfo = publicData.academy || {};
-  const themeConfig = publicData.theme || {};
-
-  const primaryColor = themeConfig.primary_color || academyInfo.theme_color || '#2563EB';
 
   const academyEntity = {
     id: academyUuid!,
@@ -113,8 +161,9 @@ export const PublicAcademyLayout: React.FC = () => {
     academyUuid: academyUuid!,
     name: academyInfo.name || 'Academy',
     tagline: themeConfig.hero_badge || 'Software Engineering Academy',
-    logoUrl: academyInfo.logo ? resolveMediaUrl(academyInfo.logo) : '',
-    faviconUrl: academyInfo.favicon ? resolveMediaUrl(academyInfo.favicon) : '',
+    logoUrl,
+    faviconUrl,
+    heroImageUrl,
     heroHeadline: publicData.home?.hero_title || 'Master Production Software Skills',
     heroSubheadline: publicData.home?.hero_subtitle || 'Join official industry-accredited courses.',
     aboutText: '',
@@ -147,17 +196,22 @@ export const PublicAcademyLayout: React.FC = () => {
 
   return (
     <PublicAcademyContext.Provider value={contextValue}>
+      <ScrollToTop />
       <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0B0F17] font-sans text-xs text-slate-900 dark:text-[#F8FAFC]">
         {/* AUTHENTICATED STUDENT BANNER */}
         {isAuthenticated && (
-          <div className="bg-[#2563EB] text-white py-2.5 px-4 text-xs font-medium flex flex-wrap items-center justify-between gap-2 z-50 shadow-xs">
-            <div className="flex items-center gap-2">
+          <div
+            style={{ backgroundColor: primaryColor }}
+            className="text-white py-2.5 px-4 text-xs font-medium flex flex-wrap items-center justify-between gap-2 z-50 shadow-xs"
+          >
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <UserCheck className="w-4 h-4 shrink-0" />
-              <span>Signed in as <strong>{user?.fullName || user?.email}</strong></span>
+              <span className="truncate">Signed in as <strong className="break-all">{user?.fullName || user?.email}</strong></span>
             </div>
             <Link
               to={`/student/academies/${academyUuid}`}
-              className="px-3.5 py-1 rounded-lg bg-white text-[#2563EB] font-semibold text-xs hover:bg-slate-100 transition-colors shadow-2xs"
+              style={{ color: primaryColor }}
+              className="px-3.5 py-1.5 rounded-lg bg-white font-semibold text-xs hover:bg-slate-100 transition-colors shadow-2xs shrink-0"
             >
               Open Student Dashboard →
             </Link>

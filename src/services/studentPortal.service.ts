@@ -1,6 +1,7 @@
 import { apiClient, publicApiClient } from './apiClient';
 import { API_ENDPOINTS } from '../config/apiEndpoints';
 import { env } from '../config/env';
+import { resolveMediaUrl } from './apiClient';
 
 export function stringifyApiErrorValue(value: unknown): string {
   if (typeof value === 'string') {
@@ -283,8 +284,8 @@ export const studentPortalService = {
           academyUuid: item.academy_uuid || item.uuid || item.id,
           name: item.name || 'Academy',
           tagline: item.tagline || 'Modern Learning Platform',
-          logoUrl: item.logo_url || '',
-          faviconUrl: item.favicon_url || '',
+          logoUrl: item.logo_url ? resolveMediaUrl(item.logo_url) : (item.logo ? resolveMediaUrl(item.logo) : ''),
+          faviconUrl: item.favicon_url ? resolveMediaUrl(item.favicon_url) : (item.favicon ? resolveMediaUrl(item.favicon) : ''),
           heroHeadline: 'Build Skills for the Future',
           heroSubheadline: 'Explore production-ready courses',
           aboutText: '',
@@ -324,8 +325,8 @@ export const studentPortalService = {
           academyUuid: id,
           name: acad.name || 'Academy',
           tagline: 'Modern Learning Platform',
-          logoUrl: acad.logo_url || '',
-          faviconUrl: '',
+          logoUrl: (acad as any).logo_url ? resolveMediaUrl((acad as any).logo_url) : ((acad as any).logo ? resolveMediaUrl((acad as any).logo) : ''),
+          faviconUrl: (acad as any).favicon_url ? resolveMediaUrl((acad as any).favicon_url) : ((acad as any).favicon ? resolveMediaUrl((acad as any).favicon) : ''),
           heroHeadline: 'Build Skills for the Future',
           heroSubheadline: 'Explore production-ready courses',
           aboutText: '',
@@ -416,15 +417,52 @@ export const studentPortalService = {
     }
   },
 
-  async getNotifications(): Promise<any[]> {
+  async getNotifications(academyUuid?: string): Promise<any[]> {
     try {
-      const res = await apiClient.get<any>(API_ENDPOINTS.notifications.list);
+      const url = academyUuid
+        ? `${API_ENDPOINTS.notifications.list}?academy_id=${academyUuid}`
+        : API_ENDPOINTS.notifications.list;
+      const res = await apiClient.get<any>(url);
       const data = res?.data || res;
       if (Array.isArray(data)) return data;
       if (data && Array.isArray(data.results)) return data.results;
       return [];
     } catch {
       return [];
+    }
+  },
+
+  async getUnreadNotificationCount(academyUuid?: string): Promise<number> {
+    try {
+      const url = academyUuid
+        ? `${API_ENDPOINTS.notifications.unreadCount}?academy_id=${academyUuid}`
+        : API_ENDPOINTS.notifications.unreadCount;
+      const res = await apiClient.get<any>(url);
+      const data = res?.data || res;
+      return typeof data?.unread_count === 'number' ? data.unread_count : 0;
+    } catch {
+      return 0;
+    }
+  },
+
+  async markNotificationRead(id: string): Promise<boolean> {
+    try {
+      await apiClient.post(API_ENDPOINTS.notifications.markRead(id));
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async markAllNotificationsRead(academyUuid?: string): Promise<number> {
+    try {
+      const res = await apiClient.post<any>(API_ENDPOINTS.notifications.markAllRead, {
+        academy_id: academyUuid,
+      });
+      const data = res?.data || res;
+      return data?.updated_count ?? 0;
+    } catch {
+      return 0;
     }
   },
 

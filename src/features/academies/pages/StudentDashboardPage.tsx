@@ -33,6 +33,7 @@ import { studentPortalService } from '../../../services/studentPortal.service';
 import { resolveMediaUrl } from '../../../services/apiClient';
 import { buildStudentCourseOverviewPath, buildStudentCourseLearnPath, isValidUuid } from '../../../utils/routeBuilder';
 import { StudentResumeTracker } from '../../../components/StudentResumeTracker';
+import { Avatar } from '../../../components/ui/Avatar';
 import { useStudentLogout } from '../../../hooks/useStudentLogout';
 
 type DashboardDataState = 'loading' | 'success' | 'forbidden' | 'not_found' | 'error';
@@ -293,19 +294,13 @@ export const StudentDashboardPage: React.FC = () => {
               <Menu className="w-5 h-5" />
             </button>
 
-            <div className="shrink-0 flex items-center">
-              {academy?.logoUrl ? (
-                <img
-                  src={academy.logoUrl}
-                  alt={academy.name}
-                  className="h-8 max-h-8 sm:h-9 sm:max-h-9 lg:h-10 lg:max-h-10 w-auto object-contain"
-                />
-              ) : (
-                <div className="h-8 w-8 sm:h-9 sm:w-9 lg:h-10 lg:w-10 rounded-xl bg-blue-50 dark:bg-[rgba(37,99,235,0.12)] text-[#2563EB] dark:text-[#60A5FA] font-bold text-sm lg:text-base flex items-center justify-center shrink-0">
-                  {academy?.name?.charAt(0) || 'A'}
-                </div>
-              )}
-            </div>
+            <Avatar
+              src={academy?.logoUrl}
+              name={academy?.name || 'Academy'}
+              type="academy"
+              size="md"
+              className="shrink-0"
+            />
 
             <div className="min-w-0 flex-1">
               <h1 className="font-semibold text-xs sm:text-sm lg:text-base text-slate-900 dark:text-[#F8FAFC] leading-tight truncate min-w-0">
@@ -405,13 +400,13 @@ export const StudentDashboardPage: React.FC = () => {
           <div className="relative w-72 max-w-[80vw] h-full bg-white dark:bg-[#111827] shadow-2xl flex flex-col justify-between z-10 text-left font-sans text-xs overflow-y-auto border-r border-slate-200 dark:border-[#263244]">
             <div className="p-4 border-b border-slate-100 dark:border-[#263244] bg-slate-50/80 dark:bg-[#0F172A] flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
-                {academy?.logoUrl ? (
-                  <img src={academy.logoUrl} alt={academy.name} className="h-8 max-h-8 w-auto object-contain shrink-0" />
-                ) : (
-                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#2563EB] font-bold text-xs flex items-center justify-center shrink-0">
-                    {academy?.name?.charAt(0) || 'A'}
-                  </div>
-                )}
+                <Avatar
+                  src={academy?.logoUrl}
+                  name={academy?.name || 'Academy'}
+                  type="academy"
+                  size="sm"
+                  className="shrink-0"
+                />
                 <span className="font-bold text-xs text-slate-950 dark:text-[#F8FAFC] truncate">
                   {academy?.name || 'Academy'}
                 </span>

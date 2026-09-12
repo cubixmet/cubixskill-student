@@ -32,6 +32,17 @@
   * {
     -ms-overflow-style: none;
     scrollbar-width: none;
+    max-width: 100%;
+  }
+
+  img, video, iframe, embed, object {
+    max-width: 100%;
+    height: auto;
+  }
+
+  p, span, h1, h2, h3, h4, h5, h6, a, code, td, th {
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
 }
 

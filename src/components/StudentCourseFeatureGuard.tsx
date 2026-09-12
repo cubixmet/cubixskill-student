@@ -1,6 +1,7 @@
 import React from 'react';
 import { useParams, Navigate, Outlet } from 'react-router-dom';
 import { useCourseFeatures } from '../hooks/useCourseFeatures';
+import { FeatureDisabledState } from './ui/FeatureDisabledState';
 
 interface Props {
   featureKey: string;
@@ -21,7 +22,7 @@ export const StudentCourseFeatureGuard: React.FC<Props> = ({ featureKey, childre
   }
 
   if (!isFeatureEnabled(featureKey)) {
-    return <Navigate to={`/student/academies/${academyUuid || ''}/courses/${courseUuid || ''}/overview`} replace />;
+    return <FeatureDisabledState featureName={featureKey.replace(/_/g, ' ')} />;
   }
 
   return children ? <>{children}</> : <Outlet />;

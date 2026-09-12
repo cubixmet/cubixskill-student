@@ -57,6 +57,21 @@ export interface AcademyEntity {
   lastActiveAt: string;
 }
 
+import { resolveMediaUrl } from '../services/apiClient';
+
+export const restoreDefaultFavicon = () => {
+  if (typeof document === 'undefined') return;
+  document.title = 'CubixSkill Student';
+  const existingIcons = document.querySelectorAll("link[rel*='icon']");
+  existingIcons.forEach((el) => el.remove());
+
+  const newLink = document.createElement('link');
+  newLink.rel = 'icon';
+  newLink.type = 'image/svg+xml';
+  newLink.href = '/favicon.svg';
+  document.getElementsByTagName('head')[0].appendChild(newLink);
+};
+
 export const applyAcademyThemeCss = (academy: AcademyEntity) => {
   if (typeof document === 'undefined') return;
   const primary = academy.theme?.primaryColor || '#2563EB';
@@ -87,15 +102,41 @@ export const applyAcademyThemeCss = (academy: AcademyEntity) => {
 
   document.documentElement.style.setProperty('--brand-accent', accent);
 
-  document.title = `${academy.name} | CubixSkill Student`;
-
-  let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
-  if (!link) {
-    link = document.createElement('link');
-    link.rel = 'shortcut icon';
-    document.getElementsByTagName('head')[0].appendChild(link);
+  if (academy.name) {
+    document.title = `${academy.name} | CubixSkill Student`;
   }
-  link.href = academy.faviconUrl || academy.logoUrl || '/favicon.ico';
+
+  // Dynamic favicon update with proper media origin resolution and clean DOM icon link management
+  const favRaw = academy.faviconUrl || academy.logoUrl;
+  const resolvedFavicon = favRaw ? resolveMediaUrl(favRaw) : '/favicon.svg';
+
+  const existingIcons = document.querySelectorAll("link[rel*='icon']");
+  existingIcons.forEach((el) => el.remove());
+
+  const newLink = document.createElement('link');
+  newLink.rel = 'icon';
+
+  const cleanPath = resolvedFavicon.split('?')[0].toLowerCase();
+  if (cleanPath.endsWith('.svg')) {
+    newLink.type = 'image/svg+xml';
+  } else if (cleanPath.endsWith('.png')) {
+    newLink.type = 'image/png';
+  } else if (cleanPath.endsWith('.jpg') || cleanPath.endsWith('.jpeg')) {
+    newLink.type = 'image/jpeg';
+  } else if (cleanPath.endsWith('.ico')) {
+    newLink.type = 'image/x-icon';
+  } else {
+    newLink.type = 'image/png';
+  }
+
+  // Stable versioning using academy UUID/ID (not random timestamps)
+  const versionId = encodeURIComponent(academy.uuid || academy.id || '1');
+  const versionedUrl = resolvedFavicon === '/favicon.svg' || resolvedFavicon.includes('?')
+    ? resolvedFavicon
+    : `${resolvedFavicon}?v=${versionId}`;
+
+  newLink.href = versionedUrl;
+  document.getElementsByTagName('head')[0].appendChild(newLink);
 };
 
 interface AcademyState {
@@ -184,7 +225,10 @@ export const useAcademyStore = create<AcademyState>()(
         return found;
       },
 
-      clearActiveAcademy: () => set({ activeAcademy: null, activeAcademyUuid: '' }),
+      clearActiveAcademy: () => {
+        restoreDefaultFavicon();
+        set({ activeAcademy: null, activeAcademyUuid: '' });
+      },
     }),
     {
       name: 'cubixskill_student_academy_store_v5',

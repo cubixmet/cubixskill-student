@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -37,9 +37,16 @@ export const NotificationsPage: React.FC = () => {
   const student = useAuthStore((state) => state.student);
   const studentUuid = student?.uuid || '';
 
+  const fetchNotifications = useNotificationStore((state) => state.fetchNotifications);
   const markRead = useNotificationStore((state) => state.markRead);
   const markAllRead = useNotificationStore((state) => state.markAllRead);
   const getCourseNotifications = useNotificationStore((state) => state.getCourseNotifications);
+
+  useEffect(() => {
+    if (studentUuid) {
+      fetchNotifications(studentUuid, academyUuid);
+    }
+  }, [studentUuid, academyUuid, fetchNotifications]);
 
   const notifications = getCourseNotifications(studentUuid, courseUuid);
 
@@ -62,9 +69,9 @@ export const NotificationsPage: React.FC = () => {
     return filteredNotifications.slice(start, start + pageSize);
   }, [filteredNotifications, currentPage, pageSize]);
 
-  const handleNotificationClick = (notification: StudentNotification) => {
+  const handleNotificationClick = async (notification: StudentNotification) => {
     if (!notification.readAt) {
-      markRead(notification.notificationUuid);
+      await markRead(notification.notificationUuid);
     }
     const targetRoute = resolveNotificationRoute(notification, academyUuid, courseUuid);
     navigate(targetRoute);
@@ -108,7 +115,7 @@ export const NotificationsPage: React.FC = () => {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => markAllRead(studentUuid, courseUuid)}
+                onClick={() => markAllRead(studentUuid, academyUuid, courseUuid)}
                 leftIcon={<CheckCheck className="w-4 h-4 text-slate-600 shrink-0" />}
                 className="font-semibold px-3.5 min-h-[38px] border-slate-300 text-slate-700 hover:bg-slate-50 cursor-pointer text-xs"
               >

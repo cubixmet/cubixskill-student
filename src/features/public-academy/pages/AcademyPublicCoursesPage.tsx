@@ -28,7 +28,7 @@ const PublicCourseCardItem: React.FC<PublicCourseCardItemProps> = ({
   const [imgFailed, setImgFailed] = useState(false);
 
   const targetId = String(course.uuid || course.id || course.slug || '');
-  const rawThumbnail = course.thumbnail || course.thumbnail_url;
+  const rawThumbnail = course.thumbnail || course.thumbnail_url || course.image_url;
   const resolvedImgUrl = resolveMediaUrl(rawThumbnail);
 
   useEffect(() => {

@@ -10,6 +10,7 @@ import { ResetPasswordPage } from './features/auth/pages/ResetPasswordPage';
 
 import { AuthGuard } from './features/auth/components/AuthGuard';
 import { GuestGuard } from './features/auth/components/GuestGuard';
+import { AuthSkeleton } from './features/auth/components/AuthSkeleton';
 import { AcademyEnrollmentGuard } from './features/auth/components/AcademyEnrollmentGuard';
 import { CourseEnrollmentGuard } from './features/auth/components/CourseEnrollmentGuard';
 import { StudentCourseFeatureGuard } from './components/StudentCourseFeatureGuard';
@@ -18,7 +19,6 @@ import { PublicAcademyLayout } from './features/public-academy/layouts/PublicAca
 import { AcademyHomePage } from './features/public-academy/pages/AcademyHomePage';
 import { AcademyPublicCoursesPage } from './features/public-academy/pages/AcademyPublicCoursesPage';
 import { CourseDetailPage } from './features/public-academy/pages/CourseDetailPage';
-import { AcademyContactPage } from './features/public-academy/pages/AcademyContactPage';
 import { CheckoutPage } from './features/checkout/pages/CheckoutPage';
 
 import { MyAcademiesPage } from './features/academies/pages/MyAcademiesPage';
@@ -51,7 +51,18 @@ import { getLastAcademy } from './lib/navigationIntent';
 import { useAuthStore } from './stores/auth.store';
 
 const RootAppRedirect: React.FC = () => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isLoading = useAuthStore((state) => state.isLoading);
   const user = useAuthStore((state) => state.user);
+
+  if (isLoading) {
+    return <AuthSkeleton />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
   const userId = user?.id || user?.uuid;
   const userResumePath = getStudentResumePath(userId);
   if (userResumePath) {
@@ -76,7 +87,11 @@ export const router = createBrowserRouter([
   },
   {
     path: '/login',
-    element: <RootAppRedirect />,
+    element: (
+      <GuestGuard>
+        <LoginPage />
+      </GuestGuard>
+    ),
   },
   {
     path: '/forgot-password',
@@ -96,7 +111,11 @@ export const router = createBrowserRouter([
   },
   {
     path: '/register',
-    element: <RootAppRedirect />,
+    element: (
+      <GuestGuard>
+        <StudentRegisterPage />
+      </GuestGuard>
+    ),
   },
 
   // GLOBAL ACADEMY FALLBACK / MANUAL SWITCHING
@@ -232,10 +251,6 @@ export const router = createBrowserRouter([
       {
         path: 'reset-password',
         element: <ResetPasswordPage />,
-      },
-      {
-        path: 'contact',
-        element: <AcademyContactPage />,
       },
     ],
   },

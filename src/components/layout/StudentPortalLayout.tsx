@@ -24,6 +24,7 @@ import {
 import { useAcademyStore, FIXED_PORTAL_SURFACES } from '../../stores/academy.store';
 import { useCourseStore } from '../../stores/course.store';
 import { useAuthStore } from '../../stores/auth.store';
+import { useNotificationStore } from '../../stores/notification.store';
 import { saveLastActiveCourse } from '../../utils/last-active-course.utility';
 import { StudentResumeTracker } from '../StudentResumeTracker';
 import { ThemeToggle } from '../ui/ThemeToggle';
@@ -31,6 +32,7 @@ import { Avatar } from '../ui/Avatar';
 import { useCourseFeatures } from '../../hooks/useCourseFeatures';
 import { useStudentLogout } from '../../hooks/useStudentLogout';
 import { COURSE_FEATURE_KEYS } from '../../constants/courseFeatures.constants';
+import { ScrollToTop } from './ScrollToTop';
 
 export const StudentPortalLayout: React.FC = () => {
   const { academyUuid, courseUuid } = useParams<{
@@ -44,9 +46,14 @@ export const StudentPortalLayout: React.FC = () => {
   const academies = useAcademyStore((state) => state.academies);
   const courses = useCourseStore((state) => state.courses);
   const user = useAuthStore((state) => state.user);
+  const student = useAuthStore((state) => state.student);
   const isDemoSession = useAuthStore((state) => state.isDemoSession);
   const exitDemoSession = useAuthStore((state) => state.exitDemoSession);
   const logout = useAuthStore((state) => state.logout);
+
+  const fetchNotifications = useNotificationStore((state) => state.fetchNotifications);
+  const fetchUnreadCount = useNotificationStore((state) => state.fetchUnreadCount);
+  const unreadCount = useNotificationStore((state) => state.getUnreadCount(student?.uuid || '', courseUuid));
 
   const academy = academies.find((a) => a.uuid === academyUuid);
   const course = courses.find((c) => c.academyUuid === academyUuid && c.uuid === courseUuid);
@@ -54,6 +61,7 @@ export const StudentPortalLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const activeNavItemRef = useRef<HTMLButtonElement>(null);
 
   const { handleLogout: executeStudentLogout } = useStudentLogout();
 
@@ -62,6 +70,21 @@ export const StudentPortalLayout: React.FC = () => {
     setMobileMenuOpen(false);
     await executeStudentLogout();
   };
+
+  useEffect(() => {
+    if (student?.uuid) {
+      fetchNotifications(student.uuid, academyUuid);
+    }
+  }, [student?.uuid, academyUuid, fetchNotifications]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (student?.uuid) {
+        fetchUnreadCount(academyUuid);
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [student?.uuid, academyUuid, fetchUnreadCount]);
 
   useEffect(() => {
     if (academyUuid && courseUuid) {
@@ -127,6 +150,21 @@ export const StudentPortalLayout: React.FC = () => {
     return false;
   };
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const timer = setTimeout(() => {
+      if (activeNavItemRef.current) {
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        activeNavItemRef.current.scrollIntoView({
+          behavior: prefersReducedMotion ? 'auto' : 'smooth',
+          block: 'center',
+          inline: 'nearest',
+        });
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [mobileMenuOpen, location.pathname]);
+
   return (
     <div
       className="min-h-screen flex flex-col font-sans bg-[#F8FAFC] dark:bg-[#0B1120] text-[#0F172A] dark:text-[#F8FAFC] text-xs hide-scrollbar"
@@ -141,6 +179,7 @@ export const StudentPortalLayout: React.FC = () => {
         } as React.CSSProperties
       }
     >
+      <ScrollToTop />
       <StudentResumeTracker />
       {/* ENTERPRISE DEMO MODE BANNER */}
       {isDemoSession && (
@@ -178,70 +217,64 @@ export const StudentPortalLayout: React.FC = () => {
 
       {/* 1. TOP HEADER (COMPACT 56px-60px HEIGHT) */}
       <header
-        className="h-14 sm:h-[60px] bg-white dark:bg-[#111827] border-b border-slate-200/80 dark:border-[#263244] px-3 sm:px-6 sticky top-0 z-40 flex items-center justify-between shadow-2xs"
+        className="h-14 sm:h-[60px] bg-white dark:bg-[#111827] border-b border-slate-200/80 dark:border-[#263244] px-3 sm:px-6 sticky top-0 z-40 flex items-center justify-between shadow-2xs text-left font-sans"
       >
-        {/* DESKTOP LEFT BRANDING */}
-        <div className="hidden md:flex items-center gap-3">
-          <Avatar src={academy?.logoUrl} name={academy?.name || 'Academy'} type="academy" size="sm" />
-          <div>
-            <span className="font-semibold text-xs text-slate-900 dark:text-[#F8FAFC] block leading-tight">
+        {/* BRANDING BLOCK: LOGO + ACADEMY & COURSE TITLES */}
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
+          <Avatar src={academy?.logoUrl} name={academy?.name || 'Academy'} type="academy" size="sm" className="w-9 h-9 sm:w-10 sm:h-10 shrink-0" />
+          <div className="min-w-0 flex-1 text-left">
+            <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-[#F8FAFC] truncate block leading-tight">
               {academy?.name || 'Academy'}
             </span>
-            <span className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-semibold truncate max-w-xs block">
-              {course?.title ? (isDemoSession ? `${course.title} (DEMO)` : course.title) : 'Selected Course'}
+            <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 dark:text-[#94A3B8] truncate block leading-tight">
+              {course?.title ? (isDemoSession ? `${course.title} (DEMO)` : course.title) : 'Student Portal'}
             </span>
           </div>
         </div>
 
-        {/* MOBILE HEADER: [Academy Logo + Name (min-w-0 flex-1)] [Actions (shrink-0)] */}
-        <div className="flex md:hidden items-center justify-between gap-2 w-full h-full min-w-0">
-          {/* 1. BRANDING BLOCK (LOGO + ACADEMY NAME & SUBTITLE) */}
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <Avatar src={academy?.logoUrl} name={academy?.name || 'Academy'} type="academy" size="sm" />
-            <div className="min-w-0 flex-1">
-              <span className="text-[12px] sm:text-[13px] font-semibold text-slate-950 dark:text-[#F8FAFC] truncate block leading-tight">
-                {academy?.name || 'Academy'}
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-normal text-slate-500 dark:text-[#94A3B8] truncate block">
-                {course?.title ? (isDemoSession ? `${course.title} (DEMO)` : course.title) : 'Course Portal'}
-              </span>
-            </div>
+        {/* HEADER ACTIONS */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* THEME TOGGLE (DESKTOP ONLY) */}
+          <div className="hidden md:block">
+            <ThemeToggle />
           </div>
 
-          {/* 2. NOTIFICATION BUTTON */}
+          {isDemoSession && (
+            <button
+              type="button"
+              onClick={async () => {
+                await exitDemoSession();
+                navigate('/login', { replace: true });
+              }}
+              className="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-[10px] font-bold uppercase tracking-wider hover:bg-amber-500/20 transition-colors shrink-0"
+            >
+              Exit Demo
+            </button>
+          )}
+
+          {/* SINGLE NOTIFICATION BELL (MOBILE & DESKTOP) */}
           <button
             type="button"
             onClick={() => navigate(`${baseUrl}/notifications`)}
-            className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl border border-slate-200 dark:border-[#263244] bg-white dark:bg-[#172033] flex items-center justify-center text-slate-600 dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-[#1E293B] cursor-pointer relative min-h-[40px] min-w-[40px] shrink-0"
+            className="w-11 h-11 min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center text-slate-600 dark:text-[#CBD5E1] hover:text-slate-900 dark:hover:text-[#F8FAFC] hover:bg-slate-100 dark:hover:bg-[#172033] transition-colors cursor-pointer relative shrink-0"
             title="Notifications"
+            aria-label="View notifications"
           >
-            <Bell className="w-4 h-4 text-slate-600 dark:text-[#CBD5E1]" />
-            <span
-              className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 w-2 h-2 rounded-full animate-pulse"
-              style={{ backgroundColor: theme.primaryColor }}
-            />
-          </button>
-        </div>
-
-        {/* DESKTOP RIGHT PROFILE & NOTIFICATIONS */}
-        <div className="hidden md:flex items-center gap-2">
-          <ThemeToggle />
-
-          <button
-            type="button"
-            onClick={() => navigate(`${baseUrl}/notifications`)}
-            className="relative p-2 rounded-xl text-slate-500 dark:text-[#94A3B8] hover:text-slate-900 dark:hover:text-[#F8FAFC] hover:bg-slate-100 dark:hover:bg-[#172033] transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
-            title="Notifications"
-          >
-            <Bell className="w-5 h-5 text-[#64748B] dark:text-[#94A3B8]" />
-            <span
-              className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full animate-pulse"
-              style={{ backgroundColor: theme.primaryColor }}
-            />
+            <Bell className="w-5 h-5 text-slate-700 dark:text-[#CBD5E1]" />
+            {unreadCount > 0 && (
+              <span
+                className="absolute -top-1 -right-1 px-1.5 py-0.5 min-w-[18px] h-[18px] rounded-full text-[10px] font-bold text-white leading-none flex items-center justify-center shadow-xs select-none"
+                style={{ backgroundColor: theme.primaryColor || '#2563EB' }}
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </button>
 
-          {/* COMPACT PROFILE DROPDOWN MENU */}
-          <div className="relative" ref={dropdownRef}>
+
+
+          {/* DESKTOP PROFILE DROPDOWN MENU */}
+          <div className="hidden md:block relative" ref={dropdownRef}>
             <button
               type="button"
               onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
@@ -305,7 +338,7 @@ export const StudentPortalLayout: React.FC = () => {
       <div className="flex-1 flex max-w-7xl w-full mx-auto">
         {/* DESKTOP LEFT NAVIGATION SIDEBAR */}
         <aside
-          className="hidden md:block w-60 bg-white dark:bg-[#111827] border-r border-slate-200/80 dark:border-[#263244] p-3 space-y-1 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto hide-scrollbar"
+          className="hidden md:block w-60 bg-white dark:bg-[#111827] border-r border-slate-200/80 dark:border-[#263244] p-3 space-y-1 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto hide-scrollbar text-left"
         >
           <div className="px-3 py-2 text-[10px] font-semibold uppercase text-slate-400 dark:text-[#64748B] tracking-wider">Course Navigation</div>
           {visibleNavItems.map((item) => {
@@ -317,33 +350,23 @@ export const StudentPortalLayout: React.FC = () => {
                 key={item.path}
                 type="button"
                 onClick={() => navigate(item.path)}
-                className={`w-full px-3 py-2.5 rounded-xl font-medium text-xs flex items-center justify-between transition-all cursor-pointer min-h-[44px] ${
-                  isSelected
-                    ? 'shadow-2xs font-semibold'
-                    : 'text-[#475569] dark:text-[#CBD5E1] hover:bg-slate-100 dark:hover:bg-[#172033] hover:text-slate-900 dark:hover:text-[#F8FAFC]'
-                }`}
+                className="w-full h-11 px-3 rounded-xl text-xs font-medium flex items-center justify-between transition-all cursor-pointer whitespace-nowrap text-left"
                 style={{
                   backgroundColor: isSelected ? (theme.primarySoft || '#EFF6FF') : undefined,
                   color: isSelected ? theme.primaryColor : undefined,
                 }}
               >
-                <div className="inline-flex items-center gap-2.5 truncate font-medium">
-                  <Icon
-                    className="w-4 h-4 shrink-0"
-                    style={{ color: isSelected ? theme.primaryColor : '#64748B' }}
-                  />
-                  <span className="truncate min-w-0">{item.label}</span>
+                <div className="inline-flex items-center gap-3 min-w-0">
+                  <Icon className="w-4 h-4 shrink-0" style={{ color: isSelected ? theme.primaryColor : '#64748B' }} />
+                  <span className="truncate font-medium">{item.label}</span>
                 </div>
-                <ChevronRight
-                  className="w-3.5 h-3.5 shrink-0"
-                  style={{ color: isSelected ? theme.primaryColor : '#CBD5E1' }}
-                />
+                {isSelected && <ChevronRight className="w-4 h-4 shrink-0" style={{ color: theme.primaryColor }} />}
               </button>
             );
           })}
         </aside>
 
-        {/* ROUTE CONTENT PAGE AREA */}
+        {/* PAGE CONTENT CONTAINER */}
         <main className={`flex-1 overflow-y-auto hide-scrollbar ${
           location.pathname.includes('/personal-chat') || location.pathname.includes('/video-session')
             ? 'p-0 sm:p-4 md:p-6 pb-0 md:pb-6'
@@ -353,54 +376,64 @@ export const StudentPortalLayout: React.FC = () => {
         </main>
       </div>
 
-      {/* 3. MOBILE BOTTOM NAVIGATION (<768px) - Hidden on /personal-chat & /video-session */}
-      {!location.pathname.includes('/personal-chat') && !location.pathname.includes('/video-session') && (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border-t border-slate-200/90 dark:border-[#263244] pb-[env(safe-area-inset-bottom)] shadow-lg font-sans text-[10px] font-semibold">
-          <div className="grid h-16 grid-cols-5 items-center">
+      {/* 3. MOBILE BOTTOM NAV BAR FOR QUICK SWITCHING */}
+      {!mobileMenuOpen && !location.pathname.includes('/personal-chat') && !location.pathname.includes('/video-session') && (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border-t border-slate-200 dark:border-[#263244] px-2 py-1 font-sans text-[10px]">
+          <div className="flex items-center justify-around h-12">
             <button
               type="button"
               onClick={() => navigate(`${baseUrl}/overview`)}
-              className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer"
+              className={`flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer ${
+                isNavItemActive(`${baseUrl}/overview`) ? 'text-[#2563EB] font-bold' : 'text-slate-600 dark:text-[#CBD5E1]'
+              }`}
               style={{
-                color: isNavItemActive(`${baseUrl}/overview`) ? theme.primaryColor : '#64748B',
+                color: isNavItemActive(`${baseUrl}/overview`) ? theme.primaryColor : undefined,
               }}
             >
               <BookOpen className="w-4 h-4" />
-              <span>My Course</span>
+              <span>Overview</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => navigate(`${baseUrl}/learn`)}
-              className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer"
-              style={{
-                color: isNavItemActive(`${baseUrl}/learn`) ? theme.primaryColor : '#64748B',
-              }}
-            >
-              <PlayCircle className="w-4 h-4" />
-              <span>Learn</span>
-            </button>
-
-            {isFeatureEnabled('liveClasses') && (
+            {isFeatureEnabled(COURSE_FEATURE_KEYS.LESSONS) && (
               <button
                 type="button"
-                onClick={() => navigate(`${baseUrl}/live-classes`)}
-                className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer"
+                onClick={() => navigate(`${baseUrl}/learn`)}
+                className={`flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer ${
+                  isNavItemActive(`${baseUrl}/learn`) ? 'text-[#2563EB] font-bold' : 'text-slate-600 dark:text-[#CBD5E1]'
+                }`}
                 style={{
-                  color: isNavItemActive(`${baseUrl}/live-classes`) ? theme.primaryColor : '#64748B',
+                  color: isNavItemActive(`${baseUrl}/learn`) ? theme.primaryColor : undefined,
                 }}
               >
-                <Video className="w-4 h-4" />
-                <span>Live</span>
+                <PlayCircle className="w-4 h-4" />
+                <span>Learn</span>
+              </button>
+            )}
+
+            {isFeatureEnabled(COURSE_FEATURE_KEYS.LESSONS) && (
+              <button
+                type="button"
+                onClick={() => navigate(`${baseUrl}/curriculum`)}
+                className={`flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer ${
+                  isNavItemActive(`${baseUrl}/curriculum`) ? 'text-[#2563EB] font-bold' : 'text-slate-600 dark:text-[#CBD5E1]'
+                }`}
+                style={{
+                  color: isNavItemActive(`${baseUrl}/curriculum`) ? theme.primaryColor : undefined,
+                }}
+              >
+                <ListTree className="w-4 h-4" />
+                <span>Curriculum</span>
               </button>
             )}
 
             <button
               type="button"
               onClick={() => navigate(`${baseUrl}/settings`)}
-              className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer"
+              className={`flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer ${
+                isNavItemActive(`${baseUrl}/settings`) ? 'text-[#2563EB] font-bold' : 'text-slate-600 dark:text-[#CBD5E1]'
+              }`}
               style={{
-                color: isNavItemActive(`${baseUrl}/settings`) ? theme.primaryColor : '#64748B',
+                color: isNavItemActive(`${baseUrl}/settings`) ? theme.primaryColor : undefined,
               }}
             >
               <User className="w-4 h-4" />
@@ -429,32 +462,29 @@ export const StudentPortalLayout: React.FC = () => {
           />
 
           {/* FULL-HEIGHT RIGHT DRAWER PANEL */}
-          <div className="relative w-80 max-w-[85vw] h-full bg-white dark:bg-[#111827] shadow-2xl flex flex-col justify-between z-10 text-left font-sans text-xs overflow-y-auto hide-scrollbar border-l border-slate-200 dark:border-[#263244]">
+          <div className="relative w-80 max-w-[85vw] h-full bg-white dark:bg-[#111827] shadow-2xl flex flex-col justify-between z-10 text-left font-sans text-xs border-l border-slate-200 dark:border-[#263244]">
             {/* DRAWER HEADER: STUDENT PROFILE DETAILS */}
-            <div className="p-4 border-b border-slate-100 dark:border-[#263244] bg-slate-50/80 dark:bg-[#0F172A] flex items-center justify-between">
+            <div className="p-4 border-b border-slate-100 dark:border-[#263244] bg-slate-50/80 dark:bg-[#0F172A] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3 min-w-0">
-                <img
-                  src={user?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120'}
-                  alt="Avatar"
-                  className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-[#263244] shadow-2xs shrink-0"
-                />
-                <div className="min-w-0">
-                  <span className="font-bold text-xs text-slate-950 dark:text-[#F8FAFC] block truncate">{user?.fullName || 'Alex Student'}</span>
-                  <span className="text-[11px] text-slate-400 dark:text-[#94A3B8] font-normal truncate block">{user?.email || 'alex.student@cubixskill.com'}</span>
+                <Avatar src={user?.avatarUrl} name={user?.fullName || user?.email} size="md" />
+                <div className="min-w-0 text-left">
+                  <span className="font-bold text-xs text-slate-950 dark:text-[#F8FAFC] block truncate">{user?.fullName}</span>
+                  <span className="text-[11px] text-slate-400 dark:text-[#94A3B8] font-normal truncate block">{user?.email}</span>
                 </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
-                className="w-8 h-8 rounded-lg bg-slate-200/60 dark:bg-[#172033] flex items-center justify-center text-slate-600 dark:text-[#CBD5E1] font-bold hover:bg-slate-200 dark:hover:bg-[#1E293B] cursor-pointer"
+                aria-label="Close navigation menu"
+                className="w-11 h-11 rounded-xl bg-slate-200/60 dark:bg-[#172033] flex items-center justify-center text-slate-600 dark:text-[#CBD5E1] font-bold hover:bg-slate-200 dark:hover:bg-[#1E293B] cursor-pointer shrink-0"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* DRAWER BODY: COURSE NAVIGATION & OPTIONS */}
-            <div className="p-3 space-y-1 flex-1 overflow-y-auto">
+            <div className="p-3 space-y-1 flex-1 overflow-y-auto text-left scroll-smooth">
               <div className="px-3 py-1.5 text-[10px] font-bold uppercase text-slate-400 dark:text-[#64748B] tracking-wider">
                 Course Navigation
               </div>
@@ -466,12 +496,13 @@ export const StudentPortalLayout: React.FC = () => {
                 return (
                   <button
                     key={item.path}
+                    ref={isSelected ? activeNavItemRef : undefined}
                     type="button"
                     onClick={() => {
                       setMobileMenuOpen(false);
                       navigate(item.path);
                     }}
-                    className="w-full h-11 px-3 rounded-xl font-medium flex items-center justify-between transition-all cursor-pointer min-h-[44px] whitespace-nowrap"
+                    className="w-full h-11 px-3 rounded-xl font-medium flex items-center justify-between transition-all cursor-pointer min-h-[44px] whitespace-nowrap text-left"
                     style={{
                       backgroundColor: isSelected ? (theme.primarySoft || '#EFF6FF') : undefined,
                       color: isSelected ? theme.primaryColor : undefined,
@@ -479,23 +510,28 @@ export const StudentPortalLayout: React.FC = () => {
                   >
                     <div className="inline-flex items-center gap-3 min-w-0">
                       <Icon className="w-4 h-4 shrink-0" style={{ color: isSelected ? theme.primaryColor : '#64748B' }} />
-                      <span className="truncate min-w-0 font-medium">{item.label}</span>
+                      <span className="truncate font-medium">{item.label}</span>
                     </div>
-                    <ChevronRight className="w-4 h-4 shrink-0" style={{ color: isSelected ? theme.primaryColor : '#CBD5E1' }} />
+                    {isSelected && <ChevronRight className="w-4 h-4 shrink-0" style={{ color: theme.primaryColor }} />}
                   </button>
                 );
               })}
             </div>
 
-            {/* DRAWER FOOTER: PROFILE, SETTINGS & LOGOUT */}
-            <div className="p-3 border-t border-slate-100 dark:border-[#263244] bg-slate-50/50 dark:bg-[#0F172A] space-y-1">
+            {/* DRAWER FOOTER: APPEARANCE, SETTINGS & LOGOUT */}
+            <div className="p-3 border-t border-slate-100 dark:border-[#263244] bg-slate-50/50 dark:bg-[#0F172A] space-y-2 shrink-0 text-left">
+              <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-[#172033]">
+                <span className="font-semibold text-slate-700 dark:text-[#CBD5E1]">Theme</span>
+                <ThemeToggle />
+              </div>
+
               <button
                 type="button"
                 onClick={() => {
                   setMobileMenuOpen(false);
                   navigate(`${baseUrl}/settings`);
                 }}
-                className="w-full h-11 px-3 rounded-xl font-semibold flex items-center justify-between hover:bg-slate-100 dark:hover:bg-[#172033] text-slate-700 dark:text-[#CBD5E1] min-h-[44px] cursor-pointer whitespace-nowrap"
+                className="w-full h-11 px-3 rounded-xl font-semibold flex items-center justify-between hover:bg-slate-100 dark:hover:bg-[#172033] text-slate-700 dark:text-[#CBD5E1] min-h-[44px] cursor-pointer whitespace-nowrap text-left"
               >
                 <div className="flex items-center gap-3">
                   <Settings className="w-4 h-4 text-slate-500 dark:text-[#94A3B8]" />
@@ -507,7 +543,7 @@ export const StudentPortalLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="w-full h-11 px-3 rounded-xl font-semibold flex items-center justify-between hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 min-h-[44px] cursor-pointer whitespace-nowrap"
+                className="w-full h-11 px-3 rounded-xl font-semibold flex items-center justify-between hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 min-h-[44px] cursor-pointer whitespace-nowrap text-left"
               >
                 <div className="flex items-center gap-3">
                   <LogOut className="w-4 h-4 text-rose-500" />
@@ -520,8 +556,8 @@ export const StudentPortalLayout: React.FC = () => {
         </div>
       )}
 
-      {/* 5. FLOATING PERSONAL CHAT BUTTON (Hidden on /personal-chat route) */}
-      {!location.pathname.includes('/personal-chat') && (
+      {/* 5. FLOATING PERSONAL CHAT BUTTON (Hidden on /personal-chat route & when mobile drawer is open) */}
+      {!location.pathname.includes('/personal-chat') && !mobileMenuOpen && (
         <button
           type="button"
           aria-label="Open personal chat"

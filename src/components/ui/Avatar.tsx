@@ -63,8 +63,8 @@ export const Avatar: React.FC<AvatarProps> = ({
           alt={name ? `${name} ${isAcademy ? 'logo' : 'avatar'}` : ''}
           onError={() => setImageFailed(true)}
           className={`${sizes[size]} ${
-            isAcademy ? 'rounded-xl' : 'rounded-full'
-          } object-cover border border-slate-200 dark:border-[#263244] shadow-2xs`}
+            isAcademy ? 'rounded-xl object-contain bg-slate-50 dark:bg-[#1E293B]' : 'rounded-full object-cover'
+          } border border-slate-200 dark:border-[#263244] shadow-2xs`}
         />
       ) : (
         <div

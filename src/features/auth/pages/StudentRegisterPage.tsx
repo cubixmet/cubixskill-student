@@ -7,6 +7,7 @@ import { Mail, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { usePublicAcademy } from '../../public-academy/layouts/PublicAcademyLayout';
 import { authService, type RegisterStudentResponse } from '../services/auth.service';
 import { buildLoginUrl, setLastAcademy } from '../../../lib/navigationIntent';
+import { Avatar } from '../../../components/ui/Avatar';
 
 const registerSchema = z.object({
   fullName: z.string().trim().min(2, 'Full name must be at least 2 characters.'),
@@ -107,34 +108,24 @@ export const StudentRegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="py-12 px-4 flex items-center justify-center font-sans min-h-[calc(100dvh-4rem)]">
-      <div className="w-full max-w-[520px] bg-white dark:bg-[#111827] rounded-[14px] p-6 sm:p-8 shadow-xl border border-[#E2E8F0] dark:border-[#263244] text-left space-y-6 min-w-0">
+    <div className="min-h-[100dvh] w-full py-4 px-3 sm:py-8 sm:px-6 flex items-center justify-center font-sans bg-slate-50 dark:bg-[#0B0F17] transition-colors duration-200">
+      <div className="w-full max-w-[480px] bg-white dark:bg-[#111827] rounded-2xl p-4 sm:p-7 shadow-xl border border-slate-200 dark:border-[#263244] text-left space-y-5 min-w-0 my-auto">
         {/* BRANDING HEADER */}
-        <div className="text-center space-y-3">
-          <Link to={`/${academyUuid}`} className="inline-flex items-center gap-3 group">
-            {academyEntity.logoUrl ? (
-              <img
-                src={academyEntity.logoUrl}
-                alt={academyEntity.name}
-                className="w-11 h-11 rounded-full object-cover border border-[#E2E8F0] dark:border-[#263244] group-hover:scale-105 transition-transform"
-              />
-            ) : (
-              <div className="w-11 h-11 rounded-full bg-blue-50 dark:bg-[rgba(37,99,235,0.12)] text-[#2563EB] dark:text-[#60A5FA] font-semibold text-xs flex items-center justify-center">
-                {academyEntity.name.charAt(0)}
-              </div>
-            )}
-            <div className="text-left">
-              <span className="font-semibold text-base text-[#0F172A] dark:text-[#F8FAFC] block leading-tight">{academyEntity.name}</span>
-              <span className="text-[11px] text-[#64748B] dark:text-[#94A3B8] font-normal">Student Portal</span>
+        <div className="text-center space-y-2.5">
+          <Link to={`/${academyUuid}`} className="inline-flex items-center gap-2.5 group">
+            <Avatar src={academyEntity.logoUrl} name={academyEntity.name} type="academy" size="md" className="shrink-0" />
+            <div className="text-left min-w-0">
+              <span className="font-bold text-sm sm:text-base text-slate-900 dark:text-[#F8FAFC] block leading-tight truncate">{academyEntity.name}</span>
+              <span className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-normal">Student Portal</span>
             </div>
           </Link>
 
           {!registerResult && (
-            <div className="pt-2 space-y-1">
-              <h1 className="text-xl font-semibold text-[#0F172A] dark:text-[#F8FAFC] tracking-tight">
+            <div className="pt-1 space-y-1">
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-[#F8FAFC] tracking-tight">
                 Create Student Account
               </h1>
-              <p className="text-xs text-[#64748B] dark:text-[#94A3B8] font-normal">
+              <p className="text-xs text-slate-500 dark:text-[#94A3B8] font-normal max-w-[340px] mx-auto leading-relaxed">
                 Register to join courses under {academyEntity.name}.
               </p>
             </div>
@@ -143,53 +134,53 @@ export const StudentRegisterPage: React.FC = () => {
 
         {/* ERROR ALERT */}
         {errorMsg && (
-          <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 text-xs text-[#DC2626] dark:text-[#F87171] flex items-center gap-2.5 font-normal">
+          <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 text-xs text-red-600 dark:text-red-400 flex items-center gap-2.5 font-medium break-words">
             <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{errorMsg}</span>
+            <span className="break-words">{errorMsg}</span>
           </div>
         )}
 
         {/* SUCCESS CARD / EMAIL VERIFICATION REQUIRED STATE */}
         {registerResult ? (
-          <div className="space-y-6 text-center">
-            <div className="w-14 h-14 rounded-full bg-blue-50 dark:bg-[rgba(37,99,235,0.12)] text-[#2563EB] dark:text-[#60A5FA] flex items-center justify-center mx-auto">
+          <div className="space-y-5 text-center">
+            <div className="w-14 h-14 rounded-full bg-blue-50 dark:bg-[rgba(37,99,235,0.12)] text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto">
               <Mail className="w-7 h-7" />
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-lg font-semibold text-[#0F172A] dark:text-[#F8FAFC]">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-[#F8FAFC]">
                 Registration Successful
               </h2>
-              <p className="text-xs text-[#64748B] dark:text-[#94A3B8] font-normal leading-relaxed max-w-sm mx-auto">
+              <p className="text-xs text-slate-500 dark:text-[#94A3B8] font-normal leading-relaxed max-w-sm mx-auto">
                 We've sent a verification email to:
               </p>
 
               {registerResult.email_masked && (
-                <div className="p-2.5 bg-slate-50 dark:bg-[#0F172A] border border-[#E2E8F0] dark:border-[#263244] rounded-xl text-xs font-mono text-[#2563EB] dark:text-[#60A5FA] font-semibold inline-block my-1">
+                <div className="p-2.5 bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-[#263244] rounded-xl text-xs font-mono text-blue-600 dark:text-blue-400 font-semibold inline-block my-1 break-all">
                   {registerResult.email_masked}
                 </div>
               )}
 
-              <p className="text-xs text-[#64748B] dark:text-[#94A3B8] font-normal pt-1">
+              <p className="text-xs text-slate-500 dark:text-[#94A3B8] font-normal pt-1 leading-relaxed">
                 Please check your inbox and verify your email to continue setting up your account.
               </p>
             </div>
 
             {resendMsg && (
-              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-[rgba(16,185,129,0.08)] border border-emerald-200 dark:border-emerald-500/20 text-xs text-emerald-800 dark:text-[#6EE7B7] flex items-center gap-2 justify-center font-normal">
+              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-[rgba(16,185,129,0.08)] border border-emerald-200 dark:border-emerald-500/20 text-xs text-emerald-800 dark:text-[#6EE7B7] flex items-center gap-2 justify-center font-medium break-words">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{resendMsg}</span>
+                <span className="break-words">{resendMsg}</span>
               </div>
             )}
 
-            <div className="flex flex-col gap-3 pt-2">
+            <div className="flex flex-col gap-2.5 pt-1">
               <button
                 type="button"
                 onClick={handleResendVerificationEmail}
                 disabled={isResending || cooldown > 0}
-                className="w-full h-11 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isResending ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${isResending ? 'animate-spin' : ''}`} />
                 <span>
                   {isResending
                     ? 'Sending Email...'
@@ -201,7 +192,7 @@ export const StudentRegisterPage: React.FC = () => {
 
               <Link
                 to={loginUrl}
-                className="w-full h-10 border border-[#E2E8F0] dark:border-[#263244] hover:bg-slate-50 dark:hover:bg-[#172033] text-[#64748B] dark:text-[#CBD5E1] font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-colors"
+                className="w-full min-h-[44px] border border-slate-200 dark:border-[#263244] hover:bg-slate-50 dark:hover:bg-[#172033] text-slate-700 dark:text-[#CBD5E1] font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer"
               >
                 <span>Go to Login</span>
               </Link>
@@ -211,64 +202,74 @@ export const StudentRegisterPage: React.FC = () => {
           /* REGISTRATION FORM */
           <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
             {/* FULL NAME */}
-            <div className="space-y-1">
-              <label className="block text-xs font-semibold text-[#0F172A] dark:text-[#CBD5E1]">
+            <div className="space-y-1.5">
+              <label htmlFor="reg-fullname" className="block text-xs font-semibold text-slate-800 dark:text-[#CBD5E1]">
                 Full Name *
               </label>
               <input
+                id="reg-fullname"
                 type="text"
                 placeholder="Jane Doe"
+                autoComplete="name"
                 {...register('fullName')}
-                className="w-full h-11 px-3.5 rounded-xl border border-[#E2E8F0] dark:border-[#263244] bg-white dark:bg-[#0F172A] text-xs font-normal text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:border-[#2563EB]"
+                className={`w-full min-h-[44px] h-[44px] px-3.5 rounded-xl border ${
+                  errors.fullName ? 'border-red-500 dark:border-red-400' : 'border-slate-300 dark:border-[#263244]'
+                } bg-white dark:bg-[#0F172A] text-base sm:text-xs font-normal text-slate-900 dark:text-[#F8FAFC] placeholder:text-slate-400 focus:outline-none focus:border-blue-600 transition-colors`}
               />
               {errors.fullName && (
-                <p className="text-[11px] text-[#DC2626] dark:text-[#F87171] font-normal">{errors.fullName.message}</p>
+                <p className="text-[11px] text-red-600 dark:text-red-400 font-medium leading-tight break-words">{errors.fullName.message}</p>
               )}
             </div>
 
             {/* EMAIL */}
-            <div className="space-y-1">
-              <label className="block text-xs font-semibold text-[#0F172A] dark:text-[#CBD5E1]">
+            <div className="space-y-1.5">
+              <label htmlFor="reg-email" className="block text-xs font-semibold text-slate-800 dark:text-[#CBD5E1]">
                 Email Address *
               </label>
               <input
+                id="reg-email"
                 type="email"
                 placeholder="student@example.com"
+                autoComplete="email"
                 {...register('email')}
-                className="w-full h-11 px-3.5 rounded-xl border border-[#E2E8F0] dark:border-[#263244] bg-white dark:bg-[#0F172A] text-xs font-normal text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:border-[#2563EB]"
+                className={`w-full min-h-[44px] h-[44px] px-3.5 rounded-xl border ${
+                  errors.email ? 'border-red-500 dark:border-red-400' : 'border-slate-300 dark:border-[#263244]'
+                } bg-white dark:bg-[#0F172A] text-base sm:text-xs font-normal text-slate-900 dark:text-[#F8FAFC] placeholder:text-slate-400 focus:outline-none focus:border-blue-600 transition-colors`}
               />
               {errors.email && (
-                <p className="text-[11px] text-[#DC2626] dark:text-[#F87171] font-normal">{errors.email.message}</p>
+                <p className="text-[11px] text-red-600 dark:text-red-400 font-medium leading-tight break-words">{errors.email.message}</p>
               )}
             </div>
 
             {/* PHONE */}
-            <div className="space-y-1">
-              <label className="block text-xs font-semibold text-[#0F172A] dark:text-[#CBD5E1]">
+            <div className="space-y-1.5">
+              <label htmlFor="reg-phone" className="block text-xs font-semibold text-slate-800 dark:text-[#CBD5E1]">
                 Phone Number <span className="text-slate-400 font-normal">(Optional)</span>
               </label>
               <input
+                id="reg-phone"
                 type="tel"
                 placeholder="+91 98765 43210"
+                autoComplete="tel"
                 {...register('phone')}
-                className="w-full h-11 px-3.5 rounded-xl border border-[#E2E8F0] dark:border-[#263244] bg-white dark:bg-[#0F172A] text-xs font-normal text-[#0F172A] dark:text-[#F8FAFC] focus:outline-none focus:border-[#2563EB]"
+                className="w-full min-h-[44px] h-[44px] px-3.5 rounded-xl border border-slate-300 dark:border-[#263244] bg-white dark:bg-[#0F172A] text-base sm:text-xs font-normal text-slate-900 dark:text-[#F8FAFC] placeholder:text-slate-400 focus:outline-none focus:border-blue-600 transition-colors"
               />
             </div>
 
             {/* TERMS CHECKBOX */}
-            <div className="pt-2">
-              <label className="flex items-start gap-2.5 cursor-pointer text-xs text-[#64748B] dark:text-[#94A3B8] font-normal">
+            <div className="pt-1">
+              <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-600 dark:text-[#94A3B8] font-normal leading-relaxed select-none">
                 <input
                   type="checkbox"
                   {...register('termsAccepted')}
-                  className="mt-0.5 rounded border-[#E2E8F0] dark:border-[#263244] text-[#2563EB] focus:ring-0 cursor-pointer"
+                  className="mt-1 w-4 h-4 rounded border-slate-300 dark:border-[#263244] text-blue-600 focus:ring-0 cursor-pointer accent-blue-600 shrink-0"
                 />
-                <span>
-                  I agree to the <span className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">Terms of Service</span> and <span className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">Privacy Policy</span>.
+                <span className="break-words">
+                  I agree to the <span className="font-semibold text-slate-900 dark:text-[#F8FAFC]">Terms of Service</span> and <span className="font-semibold text-slate-900 dark:text-[#F8FAFC]">Privacy Policy</span>.
                 </span>
               </label>
               {errors.termsAccepted && (
-                <p className="text-[11px] text-[#DC2626] dark:text-[#F87171] font-normal mt-1">{errors.termsAccepted.message}</p>
+                <p className="text-[11px] text-red-600 dark:text-red-400 font-medium mt-1 leading-tight break-words">{errors.termsAccepted.message}</p>
               )}
             </div>
 
@@ -276,15 +277,15 @@ export const StudentRegisterPage: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full h-11 mt-4 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+              className="w-full min-h-[44px] h-[44px] mt-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-semibold text-xs sm:text-sm rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
             >
               <span>{isSubmitting ? 'Creating Account...' : 'Register'}</span>
             </button>
 
             {/* LOGIN REDIRECT FOOTER */}
-            <div className="text-center pt-4 text-xs text-[#64748B] dark:text-[#94A3B8] font-normal">
+            <div className="text-center pt-3 border-t border-slate-200 dark:border-[#263244] text-xs text-slate-500 dark:text-[#94A3B8] font-normal">
               Already have an account?{' '}
-              <Link to={loginUrl} className="font-semibold text-[#2563EB] dark:text-[#60A5FA] hover:underline">
+              <Link to={loginUrl} className="font-semibold text-blue-600 dark:text-blue-400 hover:underline">
                 Sign In
               </Link>
             </div>
