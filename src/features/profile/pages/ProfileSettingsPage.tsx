@@ -519,7 +519,7 @@ export const ProfileSettingsPage: React.FC = () => {
   return (
     <div className="space-y-6 font-sans text-xs text-left max-w-4xl mx-auto pb-12 w-full px-1 sm:px-4 min-w-0">
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[var(--surface)] text-[var(--text-primary)] font-semibold text-xs px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-[var(--border)] animate-bounce">
+        <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-6 left-4 right-4 sm:left-auto sm:max-w-md z-50 bg-[var(--surface)] text-[var(--text-primary)] font-semibold text-xs px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 border border-[var(--border)] animate-bounce">
           <CheckCircle2 className="w-4 h-4 text-emerald-500" />
           <span>{toastMessage}</span>
         </div>
@@ -765,7 +765,7 @@ export const ProfileSettingsPage: React.FC = () => {
                 <Badge variant="info" size="sm">Read Only</Badge>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
                 {/* CURRENT PASSWORD */}
                 <div>
                   <label className="block font-medium text-xs text-[var(--text-primary)] mb-1">Current Password</label>
@@ -1311,3 +1311,4 @@ export const ProfileSettingsPage: React.FC = () => {
     </div>
   );
 };
+

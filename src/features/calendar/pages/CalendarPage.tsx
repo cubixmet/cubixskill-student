@@ -23,8 +23,8 @@ export const CalendarPage: React.FC = () => {
         {events.map((evt, idx) => {
           const Icon = evt.icon;
           return (
-            <Card key={idx} padding="md" className="bg-white border border-slate-200 flex items-center justify-between">
-              <div className="flex items-center gap-3">
+            <Card key={idx} padding="md" className="bg-white border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
                 <div className={`w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 ${evt.color}`}>
                   <Icon className="w-5 h-5" />
                 </div>
@@ -42,3 +42,4 @@ export const CalendarPage: React.FC = () => {
     </div>
   );
 };
+
