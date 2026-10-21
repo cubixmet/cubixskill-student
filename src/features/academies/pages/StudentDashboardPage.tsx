@@ -1,3 +1,4 @@
+import { useOverlay } from '../../../hooks/useOverlay';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
@@ -73,6 +74,13 @@ export const StudentDashboardPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const mobilePanelRef = useOverlay(mobileDrawerOpen, () => setMobileDrawerOpen(false));
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const closeOnDesktop = () => { if (desktop.matches) setMobileDrawerOpen(false); };
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => desktop.removeEventListener('change', closeOnDesktop);
+  }, []);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close profile dropdown when clicking outside
@@ -397,7 +405,7 @@ export const StudentDashboardPage: React.FC = () => {
             className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity"
             onClick={() => setMobileDrawerOpen(false)}
           />
-          <div className="relative w-72 max-w-[80vw] h-full bg-white dark:bg-[#111827] shadow-2xl flex flex-col justify-between z-10 text-left font-sans text-xs overflow-y-auto border-r border-slate-200 dark:border-[#263244]">
+          <div ref={mobilePanelRef} role="dialog" aria-modal="true" aria-label="Student navigation" tabIndex={-1} className="relative w-72 max-w-[80vw] h-dvh bg-white dark:bg-[#111827] shadow-2xl flex flex-col justify-between z-10 text-left font-sans text-xs overflow-y-auto border-r border-slate-200 dark:border-[#263244]">
             <div className="p-4 border-b border-slate-100 dark:border-[#263244] bg-slate-50/80 dark:bg-[#0F172A] flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
                 <Avatar
@@ -414,7 +422,8 @@ export const StudentDashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setMobileDrawerOpen(false)}
-                className="p-1.5 rounded-lg bg-slate-200/60 dark:bg-[#172033] text-slate-600 dark:text-[#CBD5E1] hover:bg-slate-200 cursor-pointer"
+                aria-label="Close navigation"
+                className="min-w-11 min-h-11 flex items-center justify-center p-1.5 rounded-lg bg-slate-200/60 dark:bg-[#172033] text-slate-600 dark:text-[#CBD5E1] hover:bg-slate-200 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -773,4 +782,5 @@ export const StudentDashboardPage: React.FC = () => {
     </div>
   );
 };
+
 

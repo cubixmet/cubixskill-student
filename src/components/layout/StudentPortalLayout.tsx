@@ -1,3 +1,4 @@
+import { useOverlay } from '../../hooks/useOverlay';
 import React, { useState, useRef, useEffect } from 'react';
 import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
@@ -60,10 +61,18 @@ export const StudentPortalLayout: React.FC = () => {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const mobilePanelRef = useOverlay(mobileMenuOpen, () => setMobileMenuOpen(false));
   const dropdownRef = useRef<HTMLDivElement>(null);
   const activeNavItemRef = useRef<HTMLButtonElement>(null);
 
   const { handleLogout: executeStudentLogout } = useStudentLogout();
+
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const closeOnDesktop = () => { if (desktop.matches) setMobileMenuOpen(false); };
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => desktop.removeEventListener('change', closeOnDesktop);
+  }, []);
 
   const handleLogout = async () => {
     setProfileDropdownOpen(false);
@@ -167,7 +176,7 @@ export const StudentPortalLayout: React.FC = () => {
 
   return (
     <div
-      className="min-h-screen flex flex-col font-sans bg-[#F8FAFC] dark:bg-[#0B1120] text-[#0F172A] dark:text-[#F8FAFC] text-xs hide-scrollbar"
+      className="min-h-screen flex flex-col font-sans bg-[#F8FAFC] dark:bg-[#0B1120] text-[#0F172A] dark:text-[#F8FAFC] text-sm hide-scrollbar"
       style={
         {
           '--theme-primary': theme.primaryColor || '#2563EB',
@@ -235,7 +244,7 @@ export const StudentPortalLayout: React.FC = () => {
         {/* HEADER ACTIONS */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* THEME TOGGLE (DESKTOP ONLY) */}
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <ThemeToggle />
           </div>
 
@@ -274,7 +283,7 @@ export const StudentPortalLayout: React.FC = () => {
 
 
           {/* DESKTOP PROFILE DROPDOWN MENU */}
-          <div className="hidden md:block relative" ref={dropdownRef}>
+          <div className="hidden lg:block relative" ref={dropdownRef}>
             <button
               type="button"
               onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
@@ -335,10 +344,10 @@ export const StudentPortalLayout: React.FC = () => {
       </header>
 
       {/* 2. MAIN LAYOUT BODY */}
-      <div className="flex-1 flex max-w-7xl w-full mx-auto">
+      <div className="flex-1 flex min-w-0 max-w-7xl w-full mx-auto">
         {/* DESKTOP LEFT NAVIGATION SIDEBAR */}
         <aside
-          className="hidden md:block w-60 bg-white dark:bg-[#111827] border-r border-slate-200/80 dark:border-[#263244] p-3 space-y-1 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto hide-scrollbar text-left"
+          className="hidden lg:block w-60 bg-white dark:bg-[#111827] border-r border-slate-200/80 dark:border-[#263244] p-3 space-y-1 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto hide-scrollbar text-left"
         >
           <div className="px-3 py-2 text-[10px] font-semibold uppercase text-slate-400 dark:text-[#64748B] tracking-wider">Course Navigation</div>
           {visibleNavItems.map((item) => {
@@ -367,23 +376,23 @@ export const StudentPortalLayout: React.FC = () => {
         </aside>
 
         {/* PAGE CONTENT CONTAINER */}
-        <main className={`flex-1 overflow-y-auto hide-scrollbar ${
+        <main className={`flex-1 min-w-0 overflow-y-auto hide-scrollbar ${
           location.pathname.includes('/personal-chat') || location.pathname.includes('/video-session')
-            ? 'p-0 sm:p-4 md:p-6 pb-0 md:pb-6'
-            : 'p-4 md:p-6 pb-[88px] md:pb-6'
+            ? 'p-0 sm:p-4 lg:p-6 pb-0 lg:pb-6'
+            : 'p-4 lg:p-6 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-6'
         }`}>
           <Outlet />
         </main>
       </div>
 
       {/* 3. MOBILE BOTTOM NAV BAR FOR QUICK SWITCHING */}
-      {!mobileMenuOpen && !location.pathname.includes('/personal-chat') && !location.pathname.includes('/video-session') && (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border-t border-slate-200 dark:border-[#263244] px-2 py-1 font-sans text-[10px]">
+      {!location.pathname.includes('/personal-chat') && !location.pathname.includes('/video-session') && (
+        <nav aria-label="Course shortcuts" className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border-t border-slate-200 dark:border-[#263244] px-2 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] font-sans text-[11px]">
           <div className="flex items-center justify-around h-12">
             <button
               type="button"
               onClick={() => navigate(`${baseUrl}/overview`)}
-              className={`flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer ${
+              className={`flex flex-col items-center justify-center gap-1 flex-1 min-w-0 h-full min-h-[44px] cursor-pointer ${
                 isNavItemActive(`${baseUrl}/overview`) ? 'text-[#2563EB] font-bold' : 'text-slate-600 dark:text-[#CBD5E1]'
               }`}
               style={{
@@ -398,7 +407,7 @@ export const StudentPortalLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate(`${baseUrl}/learn`)}
-                className={`flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer ${
+                className={`flex flex-col items-center justify-center gap-1 flex-1 min-w-0 h-full min-h-[44px] cursor-pointer ${
                   isNavItemActive(`${baseUrl}/learn`) ? 'text-[#2563EB] font-bold' : 'text-slate-600 dark:text-[#CBD5E1]'
                 }`}
                 style={{
@@ -414,7 +423,7 @@ export const StudentPortalLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate(`${baseUrl}/curriculum`)}
-                className={`flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer ${
+                className={`flex flex-col items-center justify-center gap-1 flex-1 min-w-0 h-full min-h-[44px] cursor-pointer ${
                   isNavItemActive(`${baseUrl}/curriculum`) ? 'text-[#2563EB] font-bold' : 'text-slate-600 dark:text-[#CBD5E1]'
                 }`}
                 style={{
@@ -429,7 +438,7 @@ export const StudentPortalLayout: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate(`${baseUrl}/settings`)}
-              className={`flex flex-col items-center justify-center gap-1 h-full min-h-[44px] cursor-pointer ${
+              className={`flex flex-col items-center justify-center gap-1 flex-1 min-w-0 h-full min-h-[44px] cursor-pointer ${
                 isNavItemActive(`${baseUrl}/settings`) ? 'text-[#2563EB] font-bold' : 'text-slate-600 dark:text-[#CBD5E1]'
               }`}
               style={{
@@ -442,8 +451,11 @@ export const StudentPortalLayout: React.FC = () => {
 
             <button
               type="button"
+              aria-label="Open course navigation"
+              aria-haspopup="dialog"
+              aria-expanded={mobileMenuOpen}
               onClick={() => setMobileMenuOpen(true)}
-              className="flex flex-col items-center justify-center gap-1 h-full min-h-[44px] text-slate-600 dark:text-[#CBD5E1] hover:text-slate-900 dark:hover:text-[#F8FAFC] cursor-pointer"
+              className="flex flex-col items-center justify-center gap-1 flex-1 min-w-0 h-full min-h-[44px] text-slate-600 dark:text-[#CBD5E1] hover:text-slate-900 dark:hover:text-[#F8FAFC] cursor-pointer"
             >
               <Menu className="w-4 h-4 text-slate-700 dark:text-[#CBD5E1]" />
               <span>More</span>
@@ -454,7 +466,7 @@ export const StudentPortalLayout: React.FC = () => {
 
       {/* 4. FULL-HEIGHT RIGHT SLIDE-OVER MOBILE DRAWER MENU */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end md:hidden font-sans">
+        <div className="fixed inset-0 z-50 flex justify-end lg:hidden font-sans">
           {/* BACKDROP */}
           <div
             className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity"
@@ -462,7 +474,7 @@ export const StudentPortalLayout: React.FC = () => {
           />
 
           {/* FULL-HEIGHT RIGHT DRAWER PANEL */}
-          <div className="relative w-80 max-w-[85vw] h-full bg-white dark:bg-[#111827] shadow-2xl flex flex-col justify-between z-10 text-left font-sans text-xs border-l border-slate-200 dark:border-[#263244]">
+          <div ref={mobilePanelRef} role="dialog" aria-modal="true" aria-label="Course navigation" tabIndex={-1} className="relative w-80 max-w-[85vw] h-dvh bg-white dark:bg-[#111827] shadow-2xl flex flex-col justify-between z-10 text-left font-sans text-xs border-l border-slate-200 dark:border-[#263244]">
             {/* DRAWER HEADER: STUDENT PROFILE DETAILS */}
             <div className="p-4 border-b border-slate-100 dark:border-[#263244] bg-slate-50/80 dark:bg-[#0F172A] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3 min-w-0">
@@ -519,7 +531,7 @@ export const StudentPortalLayout: React.FC = () => {
             </div>
 
             {/* DRAWER FOOTER: APPEARANCE, SETTINGS & LOGOUT */}
-            <div className="p-3 border-t border-slate-100 dark:border-[#263244] bg-slate-50/50 dark:bg-[#0F172A] space-y-2 shrink-0 text-left">
+            <div className="p-3 border-t border-slate-100 dark:border-[#263244] bg-slate-50/50 dark:bg-[#0F172A] pb-[calc(0.75rem+env(safe-area-inset-bottom))] space-y-2 shrink-0 text-left">
               <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-[#172033]">
                 <span className="font-semibold text-slate-700 dark:text-[#CBD5E1]">Theme</span>
                 <ThemeToggle />
@@ -563,7 +575,7 @@ export const StudentPortalLayout: React.FC = () => {
           aria-label="Open personal chat"
           onClick={() => navigate(`${baseUrl}/personal-chat`)}
           style={{ backgroundColor: theme.primaryColor }}
-          className="fixed right-5 bottom-[84px] md:bottom-[calc(30px+env(safe-area-inset-bottom))] z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-md text-white hover:opacity-90 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2"
+          className="fixed right-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] lg:bottom-[calc(30px+env(safe-area-inset-bottom))] z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-md text-white hover:opacity-90 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2"
         >
           <MessageCircle className="h-5 w-5 shrink-0 text-white" />
         </button>
@@ -571,3 +583,4 @@ export const StudentPortalLayout: React.FC = () => {
     </div>
   );
 };
+

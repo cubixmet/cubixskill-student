@@ -392,7 +392,7 @@ export const PersonalChatPage: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-3.5rem-env(safe-area-inset-bottom))] md:h-[calc(100vh-4rem)] min-h-0 max-w-5xl mx-auto w-full font-sans text-xs text-left bg-white dark:bg-[#111827] sm:rounded-2xl sm:border border-slate-200 dark:border-[#263244] shadow-2xs overflow-hidden">
+    <div className="flex flex-col h-[calc(100dvh-3.5rem-env(safe-area-inset-bottom))] lg:h-[calc(100dvh-4rem)] min-h-0 max-w-5xl mx-auto w-full font-sans text-xs text-left bg-white dark:bg-[#111827] sm:rounded-2xl sm:border border-slate-200 dark:border-[#263244] shadow-2xs overflow-hidden">
       {/* 1. CHAT HEADER (NO VIDEO SESSION BUTTON) */}
       <header className="px-3 sm:px-4 py-2.5 bg-slate-900 text-white flex items-center justify-between gap-2.5 border-b border-slate-800 shrink-0 z-10 min-h-[56px]">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -611,3 +611,4 @@ export const PersonalChatPage: React.FC = () => {
     </div>
   );
 };
+

@@ -1,3 +1,5 @@
+import { createPortal } from 'react-dom';
+import { useOverlay } from '../../hooks/useOverlay';
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, BookOpen, LogIn, UserPlus, LogOut, LayoutDashboard, Menu, X } from 'lucide-react';
@@ -25,6 +27,14 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
 
   const baseUrl = `/${academy.uuid}`;
 
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const closeOnDesktop = () => { if (desktop.matches) setMobileDrawerOpen(false); };
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => desktop.removeEventListener('change', closeOnDesktop);
+  }, []);
+
+
   // Save last academy whenever header renders
   useEffect(() => {
     if (academy.uuid) {
@@ -32,25 +42,7 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
     }
   }, [academy.uuid]);
 
-  // Lock background scroll when drawer is open and handle Escape key
-  useEffect(() => {
-    if (!mobileDrawerOpen) return;
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setMobileDrawerOpen(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [mobileDrawerOpen]);
+  const mobilePanelRef = useOverlay(mobileDrawerOpen, () => setMobileDrawerOpen(false));
 
   // Close drawer on route navigation
   useEffect(() => {
@@ -79,9 +71,9 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
     <header className="sticky top-0 z-50 bg-white/95 dark:bg-[#111827]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-[#263244] font-sans text-xs relative">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-0">
         {/* DESKTOP LAYOUT (SINGLE ROW) */}
-        <div className="hidden md:flex min-h-[64px] items-center justify-between gap-4">
+        <div className="hidden lg:flex min-h-[64px] items-center justify-between gap-4">
           {/* LEFT / LOGO */}
-          <Link to={baseUrl} className="flex items-center gap-2.5 shrink-0 max-w-xs lg:max-w-sm">
+          <Link to={baseUrl} className="flex items-center gap-2.5 min-w-0 max-w-xs xl:max-w-sm">
             <Avatar src={academy.logoUrl} name={academy.name} type="academy" size="md" />
             <div className="min-w-0 text-left">
               <h1 className="text-sm font-bold text-slate-900 dark:text-[#F8FAFC] leading-snug line-clamp-2 break-words">
@@ -163,7 +155,7 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
         </div>
 
         {/* MOBILE HEADER BAR */}
-        <div className="md:hidden flex items-center justify-between min-h-[56px] py-1.5 gap-2">
+        <div className="lg:hidden flex items-center justify-between min-h-[56px] py-1.5 gap-2">
           {/* BRAND LOGO + ACADEMY NAME */}
           <Link to={baseUrl} className="flex items-center gap-2.5 min-w-0 flex-1">
             <div className="w-9 h-9 shrink-0 flex items-center justify-center">
@@ -195,13 +187,13 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
       </div>
 
       {/* MOBILE SLIDE-OVER NAVIGATION DRAWER */}
-      {mobileDrawerOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex flex-col justify-end bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+      {mobileDrawerOpen && createPortal(
+        <div className="fixed inset-0 z-50 lg:hidden flex flex-col justify-end bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
           {/* OVERLAY BACKDROP CLICK CLOSES DRAWER */}
           <div className="absolute inset-0" onClick={() => setMobileDrawerOpen(false)} aria-hidden="true" />
 
           {/* DRAWER PANEL */}
-          <div className="relative z-10 w-full max-h-[85vh] h-auto bg-white dark:bg-[#111827] rounded-t-3xl border-t border-slate-200 dark:border-[#263244] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300">
+          <div ref={mobilePanelRef} role="dialog" aria-modal="true" aria-label="Academy navigation" tabIndex={-1} className="relative z-10 w-full max-h-[85dvh] h-auto bg-white dark:bg-[#111827] rounded-t-3xl border-t border-slate-200 dark:border-[#263244] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300">
             {/* DRAWER HEADER (FLEX SHRINK 0) */}
             <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-[#263244]">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -221,7 +213,7 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
             </div>
 
             {/* DRAWER SCROLLABLE BODY (FLEX-1 MIN-H-0 OVERFLOW-Y-AUTO) */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 font-sans">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-4 font-sans">
               {/* NAVIGATION LINKS */}
               <div className="space-y-1">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-3 block">
@@ -307,8 +299,10 @@ export const AcademyHeader: React.FC<AcademyHeaderProps> = ({ academy }) => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </header>
   );
 };
+

@@ -346,7 +346,7 @@ export const LessonPlayerPage: React.FC = () => {
   return (
     <div className="pb-12 hide-scrollbar font-sans text-xs max-w-7xl mx-auto space-y-4 text-left">
       {/* MOBILE TOP BAR FOR CURRICULUM DRAWER TOGGLE */}
-      <div className="flex lg:hidden items-center justify-between p-3.5 bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xs">
+      <div className="flex lg:hidden flex-wrap items-center justify-between gap-3 p-3.5 bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xs">
         <div className="flex items-center gap-2 min-w-0">
           <Layers className="w-4 h-4 text-[var(--brand-primary,#2563EB)] shrink-0" />
           <span className="font-semibold text-xs text-[var(--text-primary)] truncate">
@@ -359,7 +359,7 @@ export const LessonPlayerPage: React.FC = () => {
           variant="outline"
           onClick={() => setMobileDrawerOpen(true)}
           leftIcon={<ListTree className="w-4 h-4 text-[var(--brand-primary,#2563EB)] shrink-0" />}
-          className="font-semibold px-3 min-h-[38px] border-[var(--border)] text-[var(--text-primary)] shrink-0 cursor-pointer"
+          className="font-semibold px-3 min-h-[44px] border-[var(--border)] text-[var(--text-primary)] shrink-0 cursor-pointer"
         >
           Curriculum
         </Button>
@@ -491,3 +491,4 @@ export const LessonPlayerPage: React.FC = () => {
     </div>
   );
 };
+

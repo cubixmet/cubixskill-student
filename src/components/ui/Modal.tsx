@@ -1,4 +1,6 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import { createPortal } from 'react-dom';
+import { useOverlay } from '../../hooks/useOverlay';
 import { X } from 'lucide-react';
 
 export interface ModalProps {
@@ -20,16 +22,7 @@ export const Modal: React.FC<ModalProps> = ({
   maxWidth = 'md',
   mobileVariant = 'dialog',
 }) => {
-  // ESC key to close
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  const panelRef = useOverlay(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -43,18 +36,23 @@ export const Modal: React.FC<ModalProps> = ({
   };
 
   const mobileStyles = {
-    dialog: 'rounded-2xl mx-3 my-auto max-h-[90vh]',
-    sheet: 'rounded-t-2xl sm:rounded-2xl mt-auto sm:my-auto max-h-[85vh]',
-    fullscreen: 'h-full w-full rounded-none sm:rounded-2xl sm:h-auto sm:max-h-[90vh]',
+    dialog: 'rounded-2xl mx-3 my-auto max-h-[90dvh]',
+    sheet: 'rounded-t-2xl sm:rounded-2xl mt-auto sm:my-auto max-h-[85dvh]',
+    fullscreen: 'h-dvh w-full rounded-none sm:rounded-2xl sm:h-auto sm:max-h-[90dvh]',
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 transition-all duration-200 animate-in fade-in">
       {/* BACKDROP CLICK */}
       <div className="absolute inset-0" onClick={onClose} />
 
       {/* DIALOG CARD */}
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title || "Dialog"}
+        tabIndex={-1}
         className={`relative z-10 w-full bg-[var(--surface)] shadow-2xl border border-[var(--border)] overflow-hidden font-sans text-xs text-[var(--text-primary)] flex flex-col transition-all duration-200 animate-in zoom-in-95 ${maxWidths[maxWidth]} ${mobileStyles[mobileVariant]}`}
       >
         {/* Header */}
@@ -77,8 +75,10 @@ export const Modal: React.FC<ModalProps> = ({
         )}
 
         {/* Content */}
-        <div className="p-4 md:p-6 overflow-y-auto hide-scrollbar flex-1">{children}</div>
+        <div className="p-4 md:p-6 min-h-0 overflow-y-auto hide-scrollbar flex-1 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
+
