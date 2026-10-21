@@ -8,6 +8,8 @@ Validation: production build (tsc -b and Vite) passed. Overlay DOM interaction c
 
 Browser visual validation is pending: this environment has no browser binary, and the Chromium download returned an invalid archive. Builds and DOM checks do not establish pixel layout correctness. Before merging, check 320px, 390px, 768px, 1024px and 1440px widths with long names, populated and empty lists, loading/error states, open dialogs, keyboard navigation, iOS safe areas and mobile keyboards. Certificate canvases, media controls, checkout, chat and live classroom require real browser checks with representative data.
 
+Mobile follow-up: viewport-fit=cover enables safe-area insets on supported phones; small shared buttons keep a 44px mobile height.  Both production builds passed after this follow-up. Browser visual verification remains pending.
+
 ## Page inventory
 
 All pages below receive the shared CSS foundations. “Page adjustment” identifies files directly changed in this PR. Other pages keep their existing page layout; listing them is not a claim of completed browser testing.
